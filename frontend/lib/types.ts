@@ -137,6 +137,7 @@ export const CLOTHING_COLORS = [
   { name: 'Dark Brown', value: 'dark-brown', hex: '#5C4033' },
   { name: 'Burgundy', value: 'burgundy', hex: '#722F37' },
   { name: 'Red', value: 'red', hex: '#C44536' },
+  { name: 'Coral', value: 'coral', hex: '#E2725B' },
   { name: 'Pink', value: 'pink', hex: '#E8A0B0' },
   { name: 'Purple', value: 'purple', hex: '#6B5B7A' },
   { name: 'Yellow', value: 'yellow', hex: '#D4A84B' },
