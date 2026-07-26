@@ -68,6 +68,8 @@ VALID_OCCASIONS = {
     "running",
     "hiking",
     "weekend",
+    "lecture",
+    "presentation",
 }
 
 
