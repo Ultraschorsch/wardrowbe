@@ -16,6 +16,8 @@ OCCASION_FORMALITY = {
     "outdoor": ["very-casual", "casual"],
     "date": ["smart-casual", "business-casual", "formal"],
     "party": ["smart-casual", "business-casual", "formal"],
+    "lecture": ["smart-casual", "business-casual"],
+    "presentation": ["business-casual", "formal"],
 }
 
 _NORTH_SEASON = {
