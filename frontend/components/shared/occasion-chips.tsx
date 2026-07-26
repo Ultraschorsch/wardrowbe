@@ -47,6 +47,16 @@ export const OCCASION_CONFIG: Record<
     color:
       'hover:border-green-400 hover:bg-green-50 data-[selected=true]:border-green-500 data-[selected=true]:bg-green-50 data-[selected=true]:text-green-700',
   },
+  lecture: {
+    icon: <Briefcase className="h-4 w-4" />,
+    color:
+      'hover:border-amber-400 hover:bg-amber-50 data-[selected=true]:border-amber-500 data-[selected=true]:bg-amber-50 data-[selected=true]:text-amber-700',
+  },
+  presentation: {
+    icon: <Briefcase className="h-4 w-4" />,
+    color:
+      'hover:border-indigo-400 hover:bg-indigo-50 data-[selected=true]:border-indigo-500 data-[selected=true]:bg-indigo-50 data-[selected=true]:text-indigo-700',
+  },
 };
 
 interface OccasionChipsProps {
