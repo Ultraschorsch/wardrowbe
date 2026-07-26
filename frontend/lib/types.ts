@@ -186,6 +186,8 @@ export const OCCASIONS = [
   { label: 'Date', value: 'date' },
   { label: 'Sporty', value: 'sporty' },
   { label: 'Outdoor', value: 'outdoor' },
+  { label: 'Lecture', value: 'lecture' },
+  { label: 'Presentation', value: 'presentation' },
 ] as const;
 
 // Family types
