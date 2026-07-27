@@ -38,7 +38,7 @@ services:
 
   # FastAPI Backend
   backend:
-    image: ghcr.io/anyesh/wardrowbe:backend-latest
+    image: wardrowbe-fork-backend:local
     build:
       context: ./backend
     container_name: wardrobe_backend
@@ -98,7 +98,7 @@ services:
 
   # arq Worker for background jobs
   worker:
-    image: ghcr.io/anyesh/wardrowbe:backend-latest
+    image: wardrowbe-fork-backend:local
     build:
       context: ./backend
     container_name: wardrobe_worker
@@ -144,7 +144,7 @@ services:
 
   # Next.js Frontend
   frontend:
-    image: ghcr.io/anyesh/wardrowbe:frontend-latest
+    image: wardrowbe-fork-frontend:local
     build:
       context: ./frontend
     container_name: wardrobe_frontend
