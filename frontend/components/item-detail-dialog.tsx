@@ -60,7 +60,7 @@ import { Progress } from '@/components/ui/progress';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
 import { useUpdateItem, useDeleteItem, useReanalyzeItem, useRotateImage, useRemoveBackground, useRestoreOriginal, useReplaceItemImage, useLogWash, useWashHistory, useItemWearStats, useItemWearHistory, useAddItemImage, useDeleteItemImage, useSetPrimaryImage } from '@/lib/hooks/use-items';
-import { Item } from '@/lib/types';
+import { Item, CLOTHING_PATTERNS, CLOTHING_MATERIALS, CLOTHING_FORMALITY, CLOTHING_FITS, CLOTHING_STYLES, CLOTHING_SEASONS } from '@/lib/types';
 import { useClothingTypes, useClothingColors } from '@/lib/hooks/use-translated-constants';
 import { ColorEyedropper } from '@/components/color-eyedropper';
 import { GeneratePairingsDialog } from '@/components/generate-pairings-dialog';
@@ -90,6 +90,12 @@ export function ItemDetailDialog({ item, open, onOpenChange }: ItemDetailDialogP
     subtype: '',
     brand: '',
     primary_color: '',
+    pattern: '',
+    material: '',
+    formality: '',
+    fit: '',
+    style: [] as string[],
+    season: [] as string[],
     notes: '',
     favorite: false,
     wash_interval: undefined as number | undefined,
@@ -123,6 +129,12 @@ export function ItemDetailDialog({ item, open, onOpenChange }: ItemDetailDialogP
         subtype: item.subtype || '',
         brand: item.brand || '',
         primary_color: item.primary_color || '',
+        pattern: item.pattern || '',
+        material: item.material || '',
+        formality: item.formality || '',
+        fit: item.tags?.fit || '',
+        style: item.style || [],
+        season: item.season || [],
         notes: item.notes || '',
         favorite: item.favorite,
         wash_interval: item.wash_interval ?? undefined,
@@ -147,6 +159,16 @@ export function ItemDetailDialog({ item, open, onOpenChange }: ItemDetailDialogP
           notes: editForm.notes || undefined,
           favorite: editForm.favorite,
           wash_interval: editForm.wash_interval,
+          tags: {
+            ...item.tags,
+            primary_color: editForm.primary_color || undefined,
+            pattern: editForm.pattern || undefined,
+            material: editForm.material || undefined,
+            formality: editForm.formality || undefined,
+            fit: editForm.fit || undefined,
+            style: editForm.style,
+            season: editForm.season,
+          },
         },
       });
       setIsEditing(false);
@@ -596,6 +618,128 @@ export function ItemDetailDialog({ item, open, onOpenChange }: ItemDetailDialogP
                         imageUrl={imageUrl}
                         onColorSelect={(color) => setEditForm({ ...editForm, primary_color: color })}
                       />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Pattern</Label>
+                    <Select
+                      value={editForm.pattern}
+                      onValueChange={(v) => setEditForm({ ...editForm, pattern: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select pattern" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CLOTHING_PATTERNS.map((p) => (
+                          <SelectItem key={p.value} value={p.value}>
+                            {p.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Material</Label>
+                    <Select
+                      value={editForm.material}
+                      onValueChange={(v) => setEditForm({ ...editForm, material: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select material" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CLOTHING_MATERIALS.map((m) => (
+                          <SelectItem key={m.value} value={m.value}>
+                            {m.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Formality</Label>
+                    <Select
+                      value={editForm.formality}
+                      onValueChange={(v) => setEditForm({ ...editForm, formality: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select formality" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CLOTHING_FORMALITY.map((f) => (
+                          <SelectItem key={f.value} value={f.value}>
+                            {f.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Fit</Label>
+                    <Select
+                      value={editForm.fit}
+                      onValueChange={(v) => setEditForm({ ...editForm, fit: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select fit" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CLOTHING_FITS.map((f) => (
+                          <SelectItem key={f.value} value={f.value}>
+                            {f.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Style</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {CLOTHING_STYLES.map((s) => {
+                        const selected = editForm.style.includes(s.value);
+                        return (
+                          <Badge
+                            key={s.value}
+                            variant={selected ? 'default' : 'outline'}
+                            className="cursor-pointer"
+                            onClick={() =>
+                              setEditForm({
+                                ...editForm,
+                                style: selected
+                                  ? editForm.style.filter((v) => v !== s.value)
+                                  : [...editForm.style, s.value],
+                              })
+                            }
+                          >
+                            {s.label}
+                          </Badge>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Season</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {CLOTHING_SEASONS.map((s) => {
+                        const selected = editForm.season.includes(s.value);
+                        return (
+                          <Badge
+                            key={s.value}
+                            variant={selected ? 'default' : 'outline'}
+                            className="cursor-pointer"
+                            onClick={() =>
+                              setEditForm({
+                                ...editForm,
+                                season: selected
+                                  ? editForm.season.filter((v) => v !== s.value)
+                                  : [...editForm.season, s.value],
+                              })
+                            }
+                          >
+                            {s.label}
+                          </Badge>
+                        );
+                      })}
                     </div>
                   </div>
                   <div className="space-y-2">
