@@ -199,6 +199,75 @@ export const OCCASIONS = [
   { label: 'Presentation', value: 'presentation' },
 ] as const;
 
+export const CLOTHING_PATTERNS = [
+  { label: 'Solid', value: 'solid' },
+  { label: 'Striped', value: 'striped' },
+  { label: 'Plaid', value: 'plaid' },
+  { label: 'Checkered', value: 'checkered' },
+  { label: 'Floral', value: 'floral' },
+  { label: 'Graphic', value: 'graphic' },
+  { label: 'Geometric', value: 'geometric' },
+  { label: 'Polka Dot', value: 'polka-dot' },
+  { label: 'Camouflage', value: 'camouflage' },
+  { label: 'Animal Print', value: 'animal-print' },
+] as const;
+
+export const CLOTHING_MATERIALS = [
+  { label: 'Cotton', value: 'cotton' },
+  { label: 'Denim', value: 'denim' },
+  { label: 'Leather', value: 'leather' },
+  { label: 'Wool', value: 'wool' },
+  { label: 'Polyester', value: 'polyester' },
+  { label: 'Silk', value: 'silk' },
+  { label: 'Linen', value: 'linen' },
+  { label: 'Knit', value: 'knit' },
+  { label: 'Fleece', value: 'fleece' },
+  { label: 'Suede', value: 'suede' },
+  { label: 'Velvet', value: 'velvet' },
+  { label: 'Nylon', value: 'nylon' },
+  { label: 'Canvas', value: 'canvas' },
+] as const;
+
+export const CLOTHING_FORMALITY = [
+  { label: 'Very Casual', value: 'very-casual' },
+  { label: 'Casual', value: 'casual' },
+  { label: 'Smart Casual', value: 'smart-casual' },
+  { label: 'Business Casual', value: 'business-casual' },
+  { label: 'Formal', value: 'formal' },
+] as const;
+
+export const CLOTHING_FITS = [
+  { label: 'Slim', value: 'slim' },
+  { label: 'Regular', value: 'regular' },
+  { label: 'Relaxed', value: 'relaxed' },
+  { label: 'Oversized', value: 'oversized' },
+  { label: 'Tailored', value: 'tailored' },
+  { label: 'Cropped', value: 'cropped' },
+] as const;
+
+export const CLOTHING_STYLES = [
+  { label: 'Casual', value: 'casual' },
+  { label: 'Classic', value: 'classic' },
+  { label: 'Sporty', value: 'sporty' },
+  { label: 'Minimalist', value: 'minimalist' },
+  { label: 'Bohemian', value: 'bohemian' },
+  { label: 'Preppy', value: 'preppy' },
+  { label: 'Streetwear', value: 'streetwear' },
+  { label: 'Elegant', value: 'elegant' },
+  { label: 'Athletic', value: 'athletic' },
+  { label: 'Vintage', value: 'vintage' },
+  { label: 'Modern', value: 'modern' },
+  { label: 'Rugged', value: 'rugged' },
+] as const;
+
+export const CLOTHING_SEASONS = [
+  { label: 'Spring', value: 'spring' },
+  { label: 'Summer', value: 'summer' },
+  { label: 'Fall', value: 'fall' },
+  { label: 'Winter', value: 'winter' },
+  { label: 'All Season', value: 'all-season' },
+] as const;
+
 // Family types
 export interface FamilyMember {
   id: string;
