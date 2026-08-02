@@ -584,6 +584,73 @@ class AIService:
 
         return tags
 
+    async def match_outfit_photo(self, image_path, catalog: list[dict]) -> dict:
+        """Match visible clothing items in a photo against the user's existing wardrobe."""
+        image_base64 = self._preprocess_image(image_path)
+
+        catalog_json = json.dumps(catalog, ensure_ascii=False)
+        system_prompt = (
+            "You are a fashion assistant. You are given a photo of a person wearing an "
+            "outfit, and a JSON catalog of clothing items that already exist in their "
+            "digital wardrobe. Identify which catalog items (by id) are visible in the "
+            "photo. Only match items you are reasonably confident about; it is fine to "
+            "match zero, one, or several items. Respond with ONLY a JSON object of the "
+            'form {"matched_item_ids": ["<id>", ...], "notes": "<short note about the '
+            'outfit or anything unmatched>"}. No other text.\n\n'
+            f"Wardrobe catalog:\n{catalog_json}"
+        )
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"},
+                    },
+                ],
+            },
+        ]
+
+        content, error, _ = await self._call_with_fallback(
+            messages, "match_outfit_photo", use_vision_model=True
+        )
+        if error is not None or content is None:
+            raise error or RuntimeError("No response from AI for outfit photo matching")
+
+        def extract_json(text: str):
+            try:
+                return json.loads(text.strip())
+            except json.JSONDecodeError:
+                pass
+            match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+            if match:
+                try:
+                    return json.loads(match.group(1))
+                except json.JSONDecodeError:
+                    pass
+            start = text.find("{")
+            if start != -1:
+                depth = 0
+                for idx, ch in enumerate(text[start:], start):
+                    if ch == "{":
+                        depth += 1
+                    elif ch == "}":
+                        depth -= 1
+                        if depth == 0:
+                            try:
+                                return json.loads(text[start : idx + 1])
+                            except json.JSONDecodeError:
+                                return None
+            return None
+
+        parsed = extract_json(content) or {}
+        return {
+            "matched_item_ids": parsed.get("matched_item_ids", []),
+            "notes": parsed.get("notes"),
+        }
+
     async def check_health(self) -> dict:
         """Check health of all configured AI endpoints."""
         endpoints_health = []
