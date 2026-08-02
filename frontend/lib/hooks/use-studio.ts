@@ -101,3 +101,31 @@ export function usePatchOutfit() {
     },
   });
 }
+
+
+export interface OutfitFromPhotoResult {
+  outfit: Outfit;
+  matched_item_count: number;
+  notes?: string | null;
+}
+
+export function useCreateOutfitFromPhoto() {
+  const qc = useQueryClient();
+  useSetTokenIfAvailable();
+  return useMutation({
+    mutationFn: ({ photo, occasion }: { photo: File; occasion?: string }) => {
+      const formData = new FormData();
+      formData.append('photo', photo);
+      formData.append('occasion', occasion || 'casual');
+      return api.post<OutfitFromPhotoResult>('/outfits/from-photo', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['outfits'] });
+      qc.invalidateQueries({ queryKey: ['analytics'] });
+      qc.invalidateQueries({ queryKey: ['learning'] });
+      qc.invalidateQueries({ queryKey: ['items'] });
+    },
+  });
+}
