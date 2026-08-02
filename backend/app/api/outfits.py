@@ -4,7 +4,7 @@ from typing import Annotated, Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 from sqlalchemy import and_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,7 +22,8 @@ from app.models.outfit import (
 )
 from app.models.user import User
 from app.schemas.item import DEFAULT_WASH_INTERVALS
-from app.services.ai_service import AIDisabledError
+from app.services.ai_service import AIDisabledError, get_ai_service
+from app.services.image_service import ImageService
 from app.services.item_service import ItemService
 from app.services.learning_service import LearningService
 from app.services.outfit_service import OutfitListFilters, OutfitService
@@ -1147,6 +1148,111 @@ async def create_studio_outfit(
 
     full = await service.get_full_outfit(outfit.id)
     return outfit_to_response(full)
+
+
+class OutfitFromPhotoResponse(BaseModel):
+    outfit: OutfitResponse
+    matched_item_count: int
+    notes: str | None = None
+
+
+@router.post(
+    "/from-photo",
+    response_model=OutfitFromPhotoResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_outfit_from_photo(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+    photo: UploadFile = File(...),
+    occasion: str = Form("casual"),
+) -> OutfitFromPhotoResponse:
+    await rate_limit_by_user(
+        str(current_user.id), "outfit_from_photo", max_requests=10, window_seconds=60
+    )
+
+    normalized_occasion = occasion.strip().lower()
+    if normalized_occasion not in VALID_OCCASIONS:
+        normalized_occasion = "casual"
+
+    result = await db.execute(select(ClothingItem).where(ClothingItem.user_id == current_user.id))
+    items = result.scalars().all()
+    if not items:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No wardrobe items to match against yet. Add some clothes first.",
+        )
+
+    catalog = [
+        {
+            "id": str(item.id),
+            "name": item.name,
+            "type": item.type,
+            "color": item.primary_color,
+            "pattern": item.pattern,
+            "style": item.style,
+            "brand": item.brand,
+        }
+        for item in items
+    ]
+
+    image_data = await photo.read()
+    image_service = ImageService()
+    paths = await image_service.process_and_store(
+        current_user.id, image_data, photo.filename or "outfit.jpg"
+    )
+    full_image_path = image_service.storage_path / paths["original"]
+
+    try:
+        ai_service = get_ai_service()
+        match_result = await ai_service.match_outfit_photo(full_image_path, catalog)
+    except AIDisabledError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI matching is currently disabled.",
+        ) from e
+
+    valid_ids = {str(item.id) for item in items}
+    matched_ids = [
+        UUID(item_id)
+        for item_id in match_result.get("matched_item_ids", [])
+        if item_id in valid_ids
+    ]
+
+    if not matched_ids:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Could not confidently match any wardrobe items in this photo. "
+            "Try a clearer, full-body photo with good lighting.",
+        )
+
+    studio_service = StudioService(db)
+    try:
+        outfit = await studio_service.create_from_scratch(
+            user=current_user,
+            item_ids=matched_ids,
+            occasion=normalized_occasion,
+            name="Photo Outfit",
+            scheduled_for=get_user_today(current_user),
+            mark_worn=True,
+            source_item_id=None,
+        )
+    except ItemOwnershipError as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="One or more matched items do not belong to you",
+        ) from e
+
+    await db.commit()
+    await _run_learning_safely(db, outfit.id, current_user.id)
+    await clear_suggestions(current_user.id, outfit.occasion)
+
+    full = await studio_service.get_full_outfit(outfit.id)
+    return OutfitFromPhotoResponse(
+        outfit=outfit_to_response(full),
+        matched_item_count=len(matched_ids),
+        notes=match_result.get("notes"),
+    )
 
 
 @router.post("/{outfit_id}/wore-instead", response_model=OutfitResponse)
