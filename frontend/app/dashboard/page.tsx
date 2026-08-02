@@ -34,6 +34,7 @@ import { useWeather } from '@/lib/hooks/use-weather';
 import { usePreferences } from '@/lib/hooks/use-preferences';
 import { displayValue, tempSymbol, TempUnit } from '@/lib/temperature';
 import { PhotoOutfitButton } from '@/components/photo-outfit-button';
+import { PhotoOutfitButton } from '@/components/photo-outfit-button';
 import { usePendingOutfits, useAcceptOutfit, useRejectOutfit } from '@/lib/hooks/use-outfits';
 import { useSchedules, useNotificationSettings } from '@/lib/hooks/use-notifications';
 import { useFamily } from '@/lib/hooks/use-family';
