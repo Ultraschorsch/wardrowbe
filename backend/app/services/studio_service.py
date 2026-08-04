@@ -35,7 +35,7 @@ class OutfitNotTemplateError(Exception):
 
 class StudioService:
     CLONE_SOFT_IDEMPOTENCY_SECONDS = 5
-CREATE_SOFT_IDEMPOTENCY_SECONDS = 5
+    CREATE_SOFT_IDEMPOTENCY_SECONDS = 5
 
     def __init__(self, db: AsyncSession):
         self.db = db
