@@ -118,6 +118,7 @@ export function useCreateOutfitFromPhoto() {
       formData.append('photo', photo);
       formData.append('occasion', occasion || 'casual');
                     return api.post<OutfitFromPhotoResult>('/outfits/from-photo', formData);
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['outfits'] });
       qc.invalidateQueries({ queryKey: ['analytics'] });
