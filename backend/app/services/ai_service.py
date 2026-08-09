@@ -627,10 +627,20 @@ class AIService:
 
         max_reference_images = 60
         items_with_photo = [item for item in catalog if item.get("_thumbnail_path")]
+        included = 0
+        failed = 0
         for item in items_with_photo[:max_reference_images]:
             try:
                 ref_base64 = self._preprocess_image(item["_thumbnail_path"])
-            except Exception:
+                included += 1
+            except Exception as exc:
+                failed += 1
+                logger.warning(
+                    "match_outfit_photo: failed to load reference image for item %s (%s): %s",
+                    item.get("id"),
+                    item.get("_thumbnail_path"),
+                    exc,
+                )
                 continue
             content.append(
                 {
@@ -683,6 +693,15 @@ class AIService:
             return None
 
         parsed = extract_json(response_content) or {}
+        logger.info(
+            "match_outfit_photo: %s catalog items, %s reference images included, "
+            "%s failed to load, matched=%s, notes=%s",
+            len(catalog),
+            included,
+            failed,
+            parsed.get("matched_item_ids", []),
+            parsed.get("notes"),
+        )
         return {
             "matched_item_ids": parsed.get("matched_item_ids", []),
             "notes": parsed.get("notes"),
