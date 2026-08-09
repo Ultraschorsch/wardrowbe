@@ -585,38 +585,75 @@ class AIService:
         return tags
 
     async def match_outfit_photo(self, image_path, catalog: list[dict]) -> dict:
-        """Match visible clothing items in a photo against the user's existing wardrobe."""
+        """Match visible clothing items in a photo against the user's existing wardrobe.
+
+        Each catalog entry may include a "_thumbnail_path" key pointing at that
+        item's own reference photo; when present, the reference photo is sent to
+        the vision model alongside the new outfit photo so it can compare image
+        to image instead of guessing from a text description alone.
+        """
         image_base64 = self._preprocess_image(image_path)
 
-        catalog_json = json.dumps(catalog, ensure_ascii=False)
+        text_catalog = [
+            {k: v for k, v in item.items() if k != "_thumbnail_path"} for item in catalog
+        ]
+        catalog_json = json.dumps(text_catalog, ensure_ascii=False)
+
         system_prompt = (
-            "You are a fashion assistant. You are given a photo of a person wearing an "
-            "outfit, and a JSON catalog of clothing items that already exist in their "
-            "digital wardrobe. Identify which catalog items (by id) are visible in the "
-            "photo. Only match items you are reasonably confident about; it is fine to "
-            "match zero, one, or several items. Respond with ONLY a JSON object of the "
-            'form {"matched_item_ids": ["<id>", ...], "notes": "<short note about the '
-            'outfit or anything unmatched>"}. No other text.\n\n'
-            f"Wardrobe catalog:\n{catalog_json}"
+            "You are a fashion assistant. You are given one NEW photo of a person "
+            "wearing an outfit, followed by reference photos of individual clothing "
+            "items that already exist in their digital wardrobe (each reference photo "
+            "is preceded by a text line stating its catalog id and name). Compare the "
+            "new photo against the reference photos visually - do not rely on the id "
+            "or name text alone. Identify which catalog ids are actually visible, worn "
+            "in the new photo. Match generously: if an item's shape, color and pattern "
+            "reasonably resemble what is worn, include it even if you are only "
+            "moderately confident, rather than omitting it. It is fine to match zero, "
+            "one, or several items. A text-only catalog (without reference photos) is "
+            "also provided as a fallback for items with no photo:\n\n"
+            f"Text catalog:\n{catalog_json}\n\n"
+            'Respond with ONLY a JSON object of the form {"matched_item_ids": '
+            '["<id>", ...], "notes": "<short note about the outfit or anything '
+            'unmatched>"}. No other text.'
         )
 
-        messages = [
-            {"role": "system", "content": system_prompt},
+        content: list[dict] = [
+            {"type": "text", "text": "New outfit photo to match against the wardrobe:"},
             {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"},
-                    },
-                ],
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"},
             },
         ]
 
-        content, error, _ = await self._call_with_fallback(
+        max_reference_images = 60
+        items_with_photo = [item for item in catalog if item.get("_thumbnail_path")]
+        for item in items_with_photo[:max_reference_images]:
+            try:
+                ref_base64 = self._preprocess_image(item["_thumbnail_path"])
+            except Exception:
+                continue
+            content.append(
+                {
+                    "type": "text",
+                    "text": f"Wardrobe item id={item['id']} name={item.get('name')}:",
+                }
+            )
+            content.append(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{ref_base64}"},
+                }
+            )
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": content},
+        ]
+
+        response_content, error, _ = await self._call_with_fallback(
             messages, "match_outfit_photo", use_vision_model=True
         )
-        if error is not None or content is None:
+        if error is not None or response_content is None:
             raise error or RuntimeError("No response from AI for outfit photo matching")
 
         def extract_json(text: str):
@@ -630,26 +667,27 @@ class AIService:
                     return json.loads(match.group(1))
                 except json.JSONDecodeError:
                     pass
-            start = text.find("{")
-            if start != -1:
+            start_idx = text.find("{")
+            if start_idx != -1:
                 depth = 0
-                for idx, ch in enumerate(text[start:], start):
+                for idx, ch in enumerate(text[start_idx:], start_idx):
                     if ch == "{":
                         depth += 1
                     elif ch == "}":
                         depth -= 1
                         if depth == 0:
                             try:
-                                return json.loads(text[start : idx + 1])
+                                return json.loads(text[start_idx : idx + 1])
                             except json.JSONDecodeError:
                                 return None
             return None
 
-        parsed = extract_json(content) or {}
+        parsed = extract_json(response_content) or {}
         return {
             "matched_item_ids": parsed.get("matched_item_ids", []),
             "notes": parsed.get("notes"),
         }
+
 
     async def check_health(self) -> dict:
         """Check health of all configured AI endpoints."""
