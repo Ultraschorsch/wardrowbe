@@ -1201,7 +1201,7 @@ async def create_outfit_from_photo(
     paths = await image_service.process_and_store(
         current_user.id, image_data, photo.filename or "outfit.jpg"
     )
-    full_image_path = image_service.storage_path / paths["original"]
+    full_image_path = image_service.storage_path / paths["image_path"]
 
     try:
         ai_service = get_ai_service()
