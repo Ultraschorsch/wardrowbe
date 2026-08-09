@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     ai_base_url: str = Field(default="")
     ai_api_key: str | None = Field(default=None)
     ai_vision_model: str = Field(default="gpt-4o")  # comma-separated for model rotation
+    ai_outfit_match_model: str | None = Field(default=None)  # override model just for photo-outfit matching
     ai_text_model: str = Field(default="gpt-4o")  # comma-separated for model rotation
     ai_timeout: int = Field(default=120)
     ai_max_retries: int = Field(default=3)
