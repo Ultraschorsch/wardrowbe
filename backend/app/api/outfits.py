@@ -1194,8 +1194,11 @@ async def create_outfit_from_photo(
             "style": item.style,
             "brand": item.brand,
             "_thumbnail_path": (
-                str(image_service.storage_path / (item.thumbnail_path or item.image_path))
-                if (item.thumbnail_path or item.image_path)
+                str(
+                    image_service.storage_path
+                    / (item.medium_path or item.thumbnail_path or item.image_path)
+                )
+                if (item.medium_path or item.thumbnail_path or item.image_path)
                 else None
             ),
         }
