@@ -1183,6 +1183,7 @@ async def create_outfit_from_photo(
             detail="No wardrobe items to match against yet. Add some clothes first.",
         )
 
+    image_service = ImageService()
     catalog = [
         {
             "id": str(item.id),
@@ -1192,12 +1193,16 @@ async def create_outfit_from_photo(
             "pattern": item.pattern,
             "style": item.style,
             "brand": item.brand,
+            "_thumbnail_path": (
+                str(image_service.storage_path / (item.thumbnail_path or item.image_path))
+                if (item.thumbnail_path or item.image_path)
+                else None
+            ),
         }
         for item in items
     ]
 
     image_data = await photo.read()
-    image_service = ImageService()
     paths = await image_service.process_and_store(
         current_user.id, image_data, photo.filename or "outfit.jpg"
     )
