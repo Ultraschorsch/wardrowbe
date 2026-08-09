@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
 
-import { api, setAccessToken } from '@/lib/api';
+import { api, setAccessToken, getAccessToken, ApiError } from '@/lib/api';
 import type { Outfit } from '@/lib/hooks/use-outfits';
 
 function useSetTokenIfAvailable() {
@@ -111,13 +111,32 @@ export interface OutfitFromPhotoResult {
 
 export function useCreateOutfitFromPhoto() {
   const qc = useQueryClient();
-  useSetTokenIfAvailable();
+  const { data: session } = useSession();
   return useMutation({
-    mutationFn: ({ photo, occasion }: { photo: File; occasion?: string }) => {
+    mutationFn: async ({ photo, occasion }: { photo: File; occasion?: string }) => {
+      const token = session?.accessToken || getAccessToken();
       const formData = new FormData();
       formData.append('photo', photo);
       formData.append('occasion', occasion || 'casual');
-                    return api.post<OutfitFromPhotoResult>('/outfits/from-photo', formData);
+
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await fetch('/api/v1/outfits/from-photo', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+        headers,
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new ApiError(data.detail || 'Failed to create outfit from photo', response.status, data);
+      }
+
+      return response.json() as Promise<OutfitFromPhotoResult>;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['outfits'] });
