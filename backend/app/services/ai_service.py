@@ -452,12 +452,15 @@ class AIService:
         task_name: str,
         use_vision_model: bool = True,
         request_logprobs: bool = False,
+        model_override: str | None = None,
     ) -> tuple[str | None, Exception | None, list | None]:
         last_error = None
 
         for endpoint in self._endpoints:
             logger.info(f"Trying AI endpoint for {task_name}: {endpoint.name}")
-            model = endpoint.vision_model if use_vision_model else endpoint.text_model
+            model = model_override or (
+                endpoint.vision_model if use_vision_model else endpoint.text_model
+            )
             use_logprobs = request_logprobs
 
             async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
@@ -661,7 +664,10 @@ class AIService:
         ]
 
         response_content, error, _ = await self._call_with_fallback(
-            messages, "match_outfit_photo", use_vision_model=True
+            messages,
+            "match_outfit_photo",
+            use_vision_model=True,
+            model_override=self.settings.ai_outfit_match_model,
         )
         if error is not None or response_content is None:
             raise error or RuntimeError("No response from AI for outfit photo matching")
