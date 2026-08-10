@@ -1242,7 +1242,7 @@ async def create_outfit_from_photo(
             occasion=normalized_occasion,
             name="Photo Outfit",
             scheduled_for=get_user_today(current_user),
-            mark_worn=True,
+            mark_worn=False,
             source_item_id=None,
         )
     except ItemOwnershipError as e:
