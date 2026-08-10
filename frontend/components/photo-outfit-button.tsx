@@ -21,7 +21,7 @@ export function PhotoOutfitButton() {
       const result = await mutation.mutateAsync({ photo: file, occasion: 'casual' });
       if (result.matched_item_count > 0) {
         toast.success(
-          `Outfit logged with ${result.matched_item_count} matched item(s). Opening for review…`
+          `Found ${result.matched_item_count} matching item(s). Review and adjust, then mark as worn.`
         );
         router.push(`/dashboard/outfits/new?edit=${result.outfit.id}`);
       } else {
