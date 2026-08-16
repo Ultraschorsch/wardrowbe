@@ -6,6 +6,8 @@ import { useSession } from 'next-auth/react';
 import { api, getAccessToken, setAccessToken, ApiError, NetworkError } from '@/lib/api';
 import { Item, ItemListResponse, ItemFilter, WashHistoryEntry, ItemImage, TaggingProgress } from '@/lib/types';
 import { chunkArray } from '@/lib/utils';
+import { enqueueFiles } from '@/lib/upload-queue';
+import { startDrain } from '@/lib/upload-manager';
 
 // Must not exceed the backend's MAX_BULK_UPLOAD_COUNT setting, or every chunk
 // larger than the server's limit fails with a 400.
@@ -573,7 +575,9 @@ export function useReanalyzeItem() {
       if (session?.accessToken) {
         setAccessToken(session.accessToken as string);
       }
-      return api.post<{ job_id: string; status: string }>(`/items/${id}/analyze`);
+      return api.post<{ job_id?: string; status: string; retry_after_seconds?: number }>(
+        `/items/${id}/analyze`
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['items'] });
@@ -603,6 +607,8 @@ export interface BulkUploadResult {
   success: boolean;
   item?: Item;
   error?: string;
+  duplicate?: boolean;
+  existing_item_id?: string;
 }
 
 export interface BulkUploadResponse {
@@ -697,6 +703,9 @@ export function useBulkDeleteItems() {
 export interface BulkAnalyzeResponse {
   queued: number;
   failed: number;
+  skipped: number;
+  cooldown: number;
+  retry_after_seconds: number | null;
   errors: string[];
 }
 
@@ -726,7 +735,9 @@ export function useBulkReanalyzeItems() {
           return {
             ...old,
             items: old.items.map((item) =>
-              !excludedSet.has(item.id) ? { ...item, status: 'processing' as const } : item
+              !excludedSet.has(item.id)
+                ? { ...item, status: 'processing' as const, ai_started_at: null }
+                : item
             ),
           };
         });
@@ -737,7 +748,9 @@ export function useBulkReanalyzeItems() {
           return {
             ...old,
             items: old.items.map((item) =>
-              itemIdSet.has(item.id) ? { ...item, status: 'processing' as const } : item
+              itemIdSet.has(item.id)
+                ? { ...item, status: 'processing' as const, ai_started_at: null }
+                : item
             ),
           };
         });
@@ -834,6 +847,20 @@ export function mergeBulkUploadResponses(responses: BulkUploadResponse[]): BulkU
   );
 }
 
+export function tagProcessingLabel(item: Pick<Item, 'ai_started_at'>): 'queued' | 'analyzing' {
+  return item.ai_started_at ? 'analyzing' : 'queued';
+}
+
+export function formatAnalyzingElapsed(aiStartedAt: string, now: number = Date.now()): string {
+  const elapsedSeconds = Math.max(0, Math.floor((now - new Date(aiStartedAt).getTime()) / 1000));
+  if (elapsedSeconds < 60) {
+    return `${elapsedSeconds}s`;
+  }
+  const minutes = Math.floor(elapsedSeconds / 60);
+  const seconds = elapsedSeconds % 60;
+  return `${minutes}m ${seconds}s`;
+}
+
 function failedChunkResponse(files: File[], error: unknown): BulkUploadResponse {
   const message =
     error instanceof ApiError || error instanceof NetworkError
@@ -851,32 +878,59 @@ function failedChunkResponse(files: File[], error: unknown): BulkUploadResponse 
   };
 }
 
+export interface BulkStageResult {
+  // Count of files durably staged in the upload queue - already committed
+  // to IndexedDB and safe to close the tab on, even though the actual
+  // upload is still running in the background (see lib/upload-manager.ts).
+  staged: number;
+  // Real, synchronous upload results for files that couldn't be durably
+  // staged (e.g. IndexedDB quota exhaustion) and went through today's
+  // direct chunk-upload path instead. Null if every file was staged.
+  unprotected: BulkUploadResponse | null;
+}
+
 export function useBulkCreateItems() {
   const queryClient = useQueryClient();
   const { data: session } = useSession();
   const [uploadProgress, setUploadProgress] = useState(0);
 
   const mutation = useMutation({
-    mutationFn: async ({ files, skipAi = false }: { files: File[]; skipAi?: boolean }) => {
-      const token = session?.accessToken || getAccessToken();
-      const chunks = chunkArray(files, BULK_UPLOAD_CHUNK_SIZE);
-      const responses: BulkUploadResponse[] = [];
-
-      for (let i = 0; i < chunks.length; i++) {
-        const chunkFiles = chunks[i];
-        try {
-          const response = await uploadBulkItemsChunk(chunkFiles, skipAi, token, (chunkPercent) => {
-            const overall = ((i + chunkPercent / 100) / chunks.length) * 100;
-            setUploadProgress(Math.round(overall));
-          });
-          responses.push(response);
-        } catch (error) {
-          responses.push(failedChunkResponse(chunkFiles, error));
-        }
-        setUploadProgress(Math.round(((i + 1) / chunks.length) * 100));
+    mutationFn: async ({
+      files,
+      skipAi = false,
+    }: {
+      files: File[];
+      skipAi?: boolean;
+    }): Promise<BulkStageResult> => {
+      const { staged, unprotected: unprotectedFiles } = await enqueueFiles(files, skipAi);
+      if (staged.length > 0) {
+        void startDrain();
       }
 
-      return mergeBulkUploadResponses(responses);
+      let unprotected: BulkUploadResponse | null = null;
+      if (unprotectedFiles.length > 0) {
+        const token = session?.accessToken || getAccessToken();
+        const chunks = chunkArray(unprotectedFiles, BULK_UPLOAD_CHUNK_SIZE);
+        const responses: BulkUploadResponse[] = [];
+
+        for (let i = 0; i < chunks.length; i++) {
+          const chunkFiles = chunks[i];
+          try {
+            const response = await uploadBulkItemsChunk(chunkFiles, skipAi, token, (chunkPercent) => {
+              const overall = ((i + chunkPercent / 100) / chunks.length) * 100;
+              setUploadProgress(Math.round(overall));
+            });
+            responses.push(response);
+          } catch (error) {
+            responses.push(failedChunkResponse(chunkFiles, error));
+          }
+          setUploadProgress(Math.round(((i + 1) / chunks.length) * 100));
+        }
+
+        unprotected = mergeBulkUploadResponses(responses);
+      }
+
+      return { staged: staged.length, unprotected };
     },
     onMutate: () => {
       setUploadProgress(0);

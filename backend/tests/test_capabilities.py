@@ -101,8 +101,8 @@ async def test_capabilities_default_on(client: AsyncClient):
     assert data["ai"] == {"vision": True, "text": True}
     assert data["features"] == {
         "external_tagging": True,
-        "external_suggestions": False,
-        "external_pairings": False,
+        "external_suggestions": True,
+        "external_pairings": True,
     }
     assert data["version"] == "1.0.0"
 
@@ -260,6 +260,9 @@ async def test_tag_item_image_runs_ai_when_enabled(monkeypatch):
     class _Session:
         async def execute(self, *args, **kwargs):
             return _Result()
+
+        async def commit(self):
+            return None
 
         async def close(self):
             return None

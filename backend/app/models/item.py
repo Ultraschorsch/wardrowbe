@@ -57,6 +57,11 @@ class ClothingItem(Base):
     medium_path: Mapped[str | None] = mapped_column(String(500))
     original_image_path: Mapped[str | None] = mapped_column(String(500))
     image_hash: Mapped[str | None] = mapped_column(String(16), index=True)  # pHash hex string
+    # Client-generated idempotency key for the durable bulk-upload queue (frontend
+    # IndexedDB record id). Unique per user when set, enforced by a partial index
+    # (migration b1c2d3e4f5a6) so a retried/duplicated upload of the same queued
+    # record cannot create a second item. NULL for uploads outside that flow.
+    upload_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     # Classification
     type: Mapped[str] = mapped_column(String(50), nullable=False)
@@ -77,6 +82,14 @@ class ClothingItem(Base):
         Enum(ItemStatus, name="item_status"), default=ItemStatus.processing
     )
     ai_job_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Set only by tagging.py's attempt loop (from NULL), and reset to NULL only by
+    # the status=processing writers in item_service.py/items.py. A future writer of
+    # status=processing must reset this too, or the stale-item sweep in worker.py
+    # can misjudge a fresh attempt as an old, lost one.
+    ai_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Set only when an actual AI tagging attempt fails (not on queue-infrastructure
+    # failures), and drives the retry cooldown in ItemService.claim_error_item_for_retry.
+    ai_failed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ai_processed: Mapped[bool] = mapped_column(Boolean, default=False)
     ai_confidence: Mapped[Decimal | None] = mapped_column(Numeric(3, 2))
     ai_raw_response: Mapped[dict | None] = mapped_column(JSONB)
