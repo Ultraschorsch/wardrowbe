@@ -9,6 +9,7 @@ from arq import create_pool
 from arq.jobs import Job
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy import func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -221,6 +222,12 @@ async def bulk_create_items(
     current_user: Annotated[User, Depends(get_current_user)],
     images: list[UploadFile] = File(..., description="Multiple image files to upload"),
     skip_ai: bool = Form(False),
+    upload_keys: list[str] | None = Form(
+        None,
+        description="Optional per-file idempotency keys, same order/length as images. "
+        "Used by the durable upload queue so a retried chunk cannot create a "
+        "duplicate item for a file already accepted.",
+    ),
 ) -> BulkUploadResponse:
     if len(images) > settings.max_bulk_upload_count:
         raise HTTPException(
@@ -234,11 +241,23 @@ async def bulk_create_items(
             detail="At least one image is required",
         )
 
+    if upload_keys is not None and len(upload_keys) != len(images):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="upload_keys must have the same length as images",
+        )
+
     image_service = ImageService()
     item_service = ItemService(db)
     results: list[BulkUploadResult] = []
     successful = 0
     failed = 0
+    # Captured once: a rollback later in this request (the upload_key conflict
+    # branch) expires every ORM object the session has touched, including
+    # current_user. Accessing current_user.id after that point would trigger a
+    # synchronous lazy-reload outside the async context and crash with
+    # MissingGreenlet - use this plain value everywhere instead.
+    user_id = current_user.id
 
     do_auto_tag = settings.effective_ai_vision_enabled and not skip_ai
 
@@ -250,10 +269,30 @@ async def bulk_create_items(
             logger.error(f"Failed to connect to Redis for bulk upload: {e}")
 
     try:
-        for upload_file in images:
+        for idx, upload_file in enumerate(images):
             filename = upload_file.filename or "unknown.jpg"
+            upload_key = upload_keys[idx] if upload_keys is not None else None
 
             try:
+                # Fast path: this exact queued upload already succeeded (a retried
+                # chunk from the durable upload queue). Skip re-reading/re-storing
+                # the file entirely - the DB unique constraint below is the
+                # correctness backstop for the race this can't close on its own.
+                if upload_key is not None:
+                    existing_by_key = await item_service.find_by_upload_key(user_id, upload_key)
+                    if existing_by_key:
+                        results.append(
+                            BulkUploadResult(
+                                filename=filename,
+                                success=True,
+                                item=ItemResponse.model_validate(existing_by_key),
+                                duplicate=True,
+                                existing_item_id=existing_by_key.id,
+                            )
+                        )
+                        successful += 1
+                        continue
+
                 # Read and validate image
                 content = await upload_file.read()
                 content_type = upload_file.content_type or "application/octet-stream"
@@ -272,9 +311,7 @@ async def bulk_create_items(
                 # Check for duplicates BEFORE storing
                 try:
                     image_hash = image_service.compute_phash(content, filename)
-                    existing = await item_service.find_duplicate_by_hash(
-                        current_user.id, image_hash
-                    )
+                    existing = await item_service.find_duplicate_by_hash(user_id, image_hash)
                     if existing:
                         results.append(
                             BulkUploadResult(
@@ -291,7 +328,7 @@ async def bulk_create_items(
 
                 # Process and store image
                 image_paths = await image_service.process_and_store(
-                    user_id=current_user.id,
+                    user_id=user_id,
                     image_data=content,
                     original_filename=filename,
                 )
@@ -299,9 +336,10 @@ async def bulk_create_items(
                 # Create item with unknown type (AI will detect)
                 item_data = ItemCreate(type="unknown")
                 item = await item_service.create(
-                    user_id=current_user.id,
+                    user_id=user_id,
                     item_data=item_data,
                     image_paths=image_paths,
+                    upload_key=upload_key,
                 )
 
                 if not do_auto_tag:
@@ -345,6 +383,33 @@ async def bulk_create_items(
                     )
                 )
                 failed += 1
+            except IntegrityError:
+                # Only raised by the upload_key unique constraint on this table -
+                # a concurrent request (a re-entrant/multi-tab drain retry) won the
+                # race and already created the item for this exact queued upload.
+                # A flush-level integrity error poisons the session for the rest of
+                # this request, so it must be rolled back before the loop continues,
+                # and the files this iteration already wrote need cleanup or every
+                # retry of the same race leaks orphaned images on disk.
+                await db.rollback()
+                image_service.delete_images(image_paths)
+                existing_by_key = (
+                    await item_service.find_by_upload_key(user_id, upload_key)
+                    if upload_key is not None
+                    else None
+                )
+                results.append(
+                    BulkUploadResult(
+                        filename=filename,
+                        success=True,
+                        item=ItemResponse.model_validate(existing_by_key)
+                        if existing_by_key
+                        else None,
+                        duplicate=True,
+                        existing_item_id=existing_by_key.id if existing_by_key else None,
+                    )
+                )
+                successful += 1
             except Exception as e:
                 logger.error(f"Error processing {filename}: {e}")
                 results.append(
@@ -467,9 +532,61 @@ async def bulk_analyze_items(
         await db.commit()
         return BulkAnalyzeResponse(queued=0, failed=failed, errors=errors)
 
-    for item in items_to_process:
+    # Items already processing with a live job are skipped, not re-queued - a
+    # double-submit must not orphan the first job or race its ai_started_at
+    # write. An item stuck `processing` with no job (a previously-failed
+    # enqueue) is not considered "already processing" and gets a fresh job.
+    already_processing_ids = {
+        item.id
+        for item in items_to_process
+        if item.status == ItemStatus.processing and item.ai_job_id
+    }
+    # Error-status items go through the same cooldown gate as the single-item
+    # retry endpoint - deliberately NOT folded into `already_processing_ids`,
+    # since the reasons differ (a live job vs. a cooldown) and the response
+    # must report them separately (see `cooldown` below).
+    error_candidates = [
+        item
+        for item in items_to_process
+        if item.id not in already_processing_ids and item.status == ItemStatus.error
+    ]
+    to_queue = [
+        item
+        for item in items_to_process
+        if item.id not in already_processing_ids and item.status != ItemStatus.error
+    ]
+    skipped = len(already_processing_ids)
+
+    # Batched atomic claim - one round trip, not one UPDATE per item - for every
+    # error-status candidate at once. Unclaimed candidates still genuinely in
+    # `error` and within cooldown are reported honestly instead of silently
+    # dropped or mislabeled as "already processing".
+    claimed_job_ids: dict[UUID, str] = {}
+    cooldown_count = 0
+    cooldown_retry_after: int | None = None
+    if error_candidates:
+        claimed_job_ids, cooling_down = await item_service.claim_error_items_for_retry(
+            [item.id for item in error_candidates], settings.ai_retry_cooldown_seconds
+        )
+        cooldown_count = len(cooling_down)
+        if cooling_down:
+            cooldown_retry_after = max(cooling_down.values())
+        await db.commit()
+
+    for item in to_queue:
         item.status = ItemStatus.processing
+        item.ai_started_at = None
     await db.commit()
+
+    # Unified enqueue worklist: regular to_queue items get an arq-assigned job
+    # id (read back after enqueue); claimed error items already have their job
+    # id atomically assigned by the claim above and must reuse it via `_job_id`
+    # (see the single-item retry endpoint for why - it closes the same
+    # ai_job_id-ambiguity window this claim mechanism exists to prevent).
+    to_enqueue: list[tuple[ClothingItem, str | None]] = [(item, None) for item in to_queue]
+    to_enqueue += [
+        (item, claimed_job_ids[item.id]) for item in error_candidates if item.id in claimed_job_ids
+    ]
 
     # Queue AI jobs
     redis = None
@@ -477,9 +594,17 @@ async def bulk_analyze_items(
         redis = await create_pool(get_redis_settings())
     except Exception as e:
         logger.error(f"Failed to connect to Redis for bulk analyze: {e}")
-        # Roll back status changes
-        for item in items_to_process:
+        # Roll back status changes for items this call actually touched - not the
+        # full item list, or a transient outage would error out items that were
+        # already processing with a live job untouched by this request.
+        for item in to_queue:
             item.status = ItemStatus.error
+        await db.commit()
+        for item, job_id in to_enqueue:
+            if job_id is not None:
+                # Infra failure, not an AI failure - release without starting a
+                # fresh cooldown (mirrors the single-item retry endpoint).
+                await item_service.release_failed_claim(item.id, job_id)
         await db.commit()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -487,21 +612,29 @@ async def bulk_analyze_items(
         ) from None
 
     try:
-        for item in items_to_process:
+        for item, job_id in to_enqueue:
             try:
                 full_image_path = f"{settings.storage_path}/{item.image_path}"
-                await redis.enqueue_job(
+                job = await redis.enqueue_job(
                     "tag_item_image",
                     str(item.id),
                     full_image_path,
+                    _job_id=job_id,
                     _queue_name="arq:tagging",
                 )
+                if job is None:
+                    raise RuntimeError("enqueue_job returned None")
+                if job_id is None:
+                    item.ai_job_id = job.job_id
                 logger.info(f"Queued AI re-analysis for item {item.id}")
                 queued += 1
             except Exception as e:
                 logger.error(f"Failed to queue AI analysis for {item.id}: {e}")
                 errors.append(f"Failed to queue analysis for item {item.id}")
-                item.status = ItemStatus.error
+                if job_id is not None:
+                    await item_service.release_failed_claim(item.id, job_id)
+                else:
+                    item.status = ItemStatus.error
                 failed += 1
 
         await db.commit()
@@ -509,7 +642,14 @@ async def bulk_analyze_items(
         if redis:
             await redis.aclose()
 
-    return BulkAnalyzeResponse(queued=queued, failed=failed, errors=errors)
+    return BulkAnalyzeResponse(
+        queued=queued,
+        failed=failed,
+        skipped=skipped,
+        cooldown=cooldown_count,
+        retry_after_seconds=cooldown_retry_after,
+        errors=errors,
+    )
 
 
 @router.get("/types")
@@ -536,18 +676,34 @@ async def get_tagging_progress(
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> TaggingProgressResponse:
     # Wardrobe-wide, not page-scoped: the client can only see the page it asked
-    # for, so a 100-image upload showed at most "20 analyzing".
+    # for, so a 100-image upload showed at most "20 analyzing". Grouped in one
+    # query on both status and whether the job has actually started, so the
+    # queued/analyzing split can never drift against `processing` the way two
+    # separate queries could under concurrent worker commits.
     result = await db.execute(
-        select(ClothingItem.status, func.count())
+        select(ClothingItem.status, ClothingItem.ai_started_at.is_(None), func.count())
         .where(ClothingItem.user_id == current_user.id, ClothingItem.is_archived.is_(False))
-        .group_by(ClothingItem.status)
+        .group_by(ClothingItem.status, ClothingItem.ai_started_at.is_(None))
     )
-    counts = {str(getattr(status_value, "value", status_value)): n for status_value, n in result}
-    processing = counts.get(ItemStatus.processing.value, 0)
-    failed = counts.get(ItemStatus.error.value, 0)
-    total = sum(counts.values())
+    queued = 0
+    analyzing = 0
+    failed = 0
+    total = 0
+    for status_value, is_null, n in result:
+        status_str = str(getattr(status_value, "value", status_value))
+        total += n
+        if status_str == ItemStatus.processing.value:
+            if is_null:
+                queued += n
+            else:
+                analyzing += n
+        elif status_str == ItemStatus.error.value:
+            failed += n
+    processing = queued + analyzing
     return TaggingProgressResponse(
         processing=processing,
+        queued=queued,
+        analyzing=analyzing,
         failed=failed,
         completed=total - processing - failed,
         total=total,
@@ -871,8 +1027,63 @@ async def trigger_ai_analysis(
         await db.commit()
         return {"status": "deferred", "reason": "vision disabled"}
 
+    if item.status == ItemStatus.processing and item.ai_job_id:
+        # Dedup: a live job already owns this item. If ai_job_id is None instead,
+        # a prior enqueue silently failed and there's nothing to dedup against -
+        # fall through to a fresh enqueue below.
+        return {"status": "already_queued", "job_id": item.ai_job_id}
+
+    if item.status == ItemStatus.error:
+        # Cooldown gate: internal retry (ai_service.py's fallback loop, arq's own
+        # backoff) already exhausted itself before this item reached `error`, so
+        # an instant manual retry only "works" by luck. Gated separately from the
+        # branch above - every other status keeps the unconditional enqueue below
+        # untouched.
+        image_path = item.image_path
+        job_id, retry_after_seconds = await item_service.claim_error_item_for_retry(
+            item.id, settings.ai_retry_cooldown_seconds
+        )
+        if job_id is None:
+            if retry_after_seconds is not None:
+                return {"status": "cooldown", "retry_after_seconds": retry_after_seconds}
+            # Lost a concurrent claim on this same item - report its real
+            # current state instead of a stale in-memory guess.
+            current = await item_service.get_by_id(item_id, current_user.id)
+            return {
+                "status": "already_queued",
+                "job_id": current.ai_job_id if current else None,
+            }
+
+        await db.commit()
+        try:
+            redis = await create_pool(get_redis_settings())
+            try:
+                full_image_path = f"{settings.storage_path}/{image_path}"
+                enqueued = await redis.enqueue_job(
+                    "tag_item_image",
+                    str(item_id),
+                    full_image_path,
+                    _job_id=job_id,
+                    _queue_name="arq:tagging",
+                )
+                if enqueued is None:
+                    raise RuntimeError("enqueue_job returned None")
+                logger.info(f"Queued AI re-analysis job for item {item_id}")
+                return {"status": "queued", "job_id": job_id}
+            finally:
+                await redis.aclose()
+        except Exception as e:
+            logger.error(f"Failed to queue AI analysis job: {e}")
+            await item_service.release_failed_claim(item_id, job_id)
+            await db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to queue AI analysis",
+            ) from None
+
     try:
         item.status = ItemStatus.processing
+        item.ai_started_at = None
         await db.commit()
 
         redis = await create_pool(get_redis_settings())
@@ -953,14 +1164,14 @@ async def cancel_item_analysis(
     await db.execute(
         update(ClothingItem)
         .where(ClothingItem.id == item.id, ClothingItem.status == ItemStatus.processing)
-        .values(status=ItemStatus.ready, ai_job_id=None)
+        .values(status=ItemStatus.ready, ai_job_id=None, ai_started_at=None)
     )
     await db.commit()
     # updated_at is recomputed by a DB-side trigger on UPDATE, so the Core update()
     # above leaves the in-memory value stale; refresh it explicitly alongside the
     # columns we changed instead of a bare refresh(), which would also expire the
     # already eager-loaded additional_images relationship and blow up serialization.
-    await db.refresh(item, attribute_names=["status", "ai_job_id", "updated_at"])
+    await db.refresh(item, attribute_names=["status", "ai_job_id", "ai_started_at", "updated_at"])
     return ItemResponse.model_validate(item)
 
 

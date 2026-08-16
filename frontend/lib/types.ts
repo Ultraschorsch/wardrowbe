@@ -42,6 +42,7 @@ export interface Item {
   ai_confidence?: number;
   ai_description?: string;
   ai_error?: string | null;
+  ai_started_at?: string | null;
   tagging_status: 'pending' | 'tagged';
   tagged_by?: 'auto' | 'manual' | null;
   tagged_at?: string | null;
@@ -73,6 +74,8 @@ export interface ItemListResponse {
 
 export interface TaggingProgress {
   processing: number;
+  queued: number;
+  analyzing: number;
   failed: number;
   completed: number;
   total: number;
@@ -372,7 +375,7 @@ export interface FeedbackSummary {
   worn_at?: string;
 }
 
-export type OutfitSource = 'scheduled' | 'on_demand' | 'manual' | 'pairing';
+export type OutfitSource = 'scheduled' | 'on_demand' | 'manual' | 'pairing' | 'external';
 
 export interface Outfit {
   id: string;
@@ -382,6 +385,10 @@ export interface Outfit {
   source: OutfitSource;
   reasoning?: string;
   style_notes?: string;
+  season?: string | null;
+  formality?: string | null;
+  palette?: string[] | null;
+  notes?: string | null;
   highlights?: string[];
   weather?: WeatherData;
   items: OutfitItem[];
