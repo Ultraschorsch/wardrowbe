@@ -38,7 +38,9 @@ services:
 
   # FastAPI Backend
   backend:
-    image: ghcr.io/anyesh/wardrowbe:backend-latest
+    image: wardrowbe-fork-backend:local
+    build:
+      context: ./backend
     container_name: wardrobe_backend
     restart: unless-stopped
     extra_hosts:
@@ -51,8 +53,10 @@ services:
       REDIS_URL: redis://redis:6379
       STORAGE_PATH: /data/uploads
       AI_BASE_URL: ${AI_BASE_URL:-http://host.docker.internal:4141/v1}
+      AI_API_KEY: ${AI_API_KEY:-}
       AI_VISION_MODEL: ${AI_VISION_MODEL:-gpt-4o}
       AI_TEXT_MODEL: ${AI_TEXT_MODEL:-gpt-4o}
+      AI_OUTFIT_MATCH_MODEL: ${AI_OUTFIT_MATCH_MODEL:-}
       AI_TIMEOUT: ${AI_TIMEOUT:-120}
       AI_MAX_RETRIES: ${AI_MAX_RETRIES:-3}
       AI_INTERNAL_ENABLED: ${AI_INTERNAL_ENABLED:-true}
@@ -60,6 +64,7 @@ services:
       AI_TEXT_ENABLED: ${AI_TEXT_ENABLED:-}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
+      DEBUG: ${DEBUG:-false}
       # OIDC (set these if using OIDC instead of forward auth)
       OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:-}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
@@ -94,7 +99,9 @@ services:
 
   # arq Worker for background jobs
   worker:
-    image: ghcr.io/anyesh/wardrowbe:backend-latest
+    image: wardrowbe-fork-backend:local
+    build:
+      context: ./backend
     container_name: wardrobe_worker
     restart: unless-stopped
     command: arq app.workers.worker.WorkerSettings
@@ -107,6 +114,7 @@ services:
       REDIS_URL: redis://redis:6379
       STORAGE_PATH: /data/uploads
       AI_BASE_URL: ${AI_BASE_URL:-http://host.docker.internal:4141/v1}
+      AI_API_KEY: ${AI_API_KEY:-}
       AI_VISION_MODEL: ${AI_VISION_MODEL:-gpt-4o}
       AI_TEXT_MODEL: ${AI_TEXT_MODEL:-gpt-4o}
       AI_TIMEOUT: ${AI_TIMEOUT:-120}
@@ -116,6 +124,7 @@ services:
       AI_VISION_ENABLED: ${AI_VISION_ENABLED:-}
       AI_TEXT_ENABLED: ${AI_TEXT_ENABLED:-}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DEBUG: ${DEBUG:-false}
       # Notifications
       NTFY_SERVER: ${NTFY_SERVER:-}
       NTFY_TOPIC: ${NTFY_TOPIC:-}
@@ -137,7 +146,9 @@ services:
 
   # Next.js Frontend
   frontend:
-    image: ghcr.io/anyesh/wardrowbe:frontend-latest
+    image: wardrowbe-fork-frontend:local
+    build:
+      context: ./frontend
     container_name: wardrobe_frontend
     restart: unless-stopped
     extra_hosts:
@@ -152,6 +163,7 @@ services:
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?Set NEXTAUTH_SECRET in .env}
       # NEXT_PUBLIC_API_URL is the pre-1.6 name, still honored so existing .env files keep working.
       BACKEND_URL: ${BACKEND_URL:-${NEXT_PUBLIC_API_URL:-http://backend:8000}}
+      DEV_MODE: ${DEV_MODE:-false}
       # OIDC
       OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:-}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
@@ -175,7 +187,7 @@ services:
     container_name: wardrobe_nginx
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8080:80"
+      - "${NGINX_BIND_ADDR:-0.0.0.0}:${NGINX_PORT:-8080}:80"
     environment:
       NGINX_AI_TIMEOUT: ${NGINX_AI_TIMEOUT:-600}
       BACKEND_HOST: ${BACKEND_HOST:-backend}
