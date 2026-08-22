@@ -144,5 +144,16 @@
     "unit": "Unità di temperatura"
   },
   "title": "Impostazioni",
-  "unsavedChanges": "Hai modifiche non salvate. Uscire da questa pagina?"
+  "unsavedChanges": "Hai modifiche non salvate. Uscire da questa pagina?",
+  "colorSeason": {
+    "title": "Stagione colore",
+    "description": "Facoltativo: imposta il tuo tipo di stagione colore personale per suggerimenti di outfit con colori che ti valorizzano.",
+    "select": "La tua stagione colore",
+    "none": "Non impostato",
+    "spring": "Primavera",
+    "summer": "Estate",
+    "autumn": "Autunno",
+    "winter": "Inverno",
+    "hint": "I suggerimenti privilegeranno combinazioni adatte a questa stagione, incluse abbinamenti che magari non avresti provato da solo."
+  }
 }
