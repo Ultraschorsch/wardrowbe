@@ -111,9 +111,14 @@ export interface AIEndpoint {
   enabled: boolean;
 }
 
+export type ColorSeason = 'spring' | 'summer' | 'autumn' | 'winter';
+
+export const COLOR_SEASONS: ColorSeason[] = ['spring', 'summer', 'autumn', 'winter'];
+
 export interface Preferences {
   color_favorites: string[];
   color_avoid: string[];
+  color_season: ColorSeason | null;
   style_profile: StyleProfile;
   default_occasion: string;
   temperature_unit: 'celsius' | 'fahrenheit';
