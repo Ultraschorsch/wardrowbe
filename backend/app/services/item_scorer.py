@@ -6,6 +6,7 @@ from uuid import UUID
 from app.models.item import ClothingItem
 from app.models.preference import UserPreference
 from app.services.weather_service import WeatherData
+from app.utils.color_seasons import get_palette
 
 OCCASION_FORMALITY = {
     "casual": ["very-casual", "casual", "smart-casual"],
@@ -211,6 +212,16 @@ def _preference_score(
             score += 0.1
         if color and color in avoid_colors:
             score -= 0.3
+
+        season_palette = get_palette(preferences.color_season)
+        if season_palette and color:
+            # Smaller weight than explicit favorites/avoid, since this is a
+            # general seasonal guideline rather than the user's own stated
+            # preference - it should nudge combinations, not override them.
+            if color in season_palette["recommended"]:
+                score += 0.06
+            elif color in season_palette["avoid"]:
+                score -= 0.1
 
     if learned:
         learned_favs = [c.lower() for c in learned.get("learned_favorite_colors", [])]
