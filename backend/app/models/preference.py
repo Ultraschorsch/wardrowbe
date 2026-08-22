@@ -25,6 +25,11 @@ class UserPreference(Base):
     color_favorites: Mapped[list[str]] = mapped_column(ARRAY(String), default=list)
     color_avoid: Mapped[list[str]] = mapped_column(ARRAY(String), default=list)
 
+    # Personal color-season analysis (spring/summer/autumn/winter), optional.
+    # When set, recommendations lean toward the season's reference palette
+    # (see app.utils.color_seasons) in addition to explicit favorites/avoid.
+    color_season: Mapped[str | None] = mapped_column(String(10))
+
     # Style preferences
     style_profile: Mapped[dict] = mapped_column(JSONB, default=dict)
 
