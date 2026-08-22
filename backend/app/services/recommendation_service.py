@@ -23,6 +23,7 @@ from app.models.outfit import (
 from app.models.preference import UserPreference
 from app.models.user import User
 from app.services.ai_service import AIResponseTruncatedError, AIService, require_internal_ai
+from app.utils.color_seasons import get_palette
 from app.services.item_scorer import get_season, score_items
 from app.services.suggestion_cache import pop_suggestion, push_suggestions
 from app.services.weather_service import (
@@ -320,6 +321,20 @@ class RecommendationService:
                 lines.append(f"- Favorite colors: {', '.join(preferences.color_favorites)}")
             if preferences.color_avoid:
                 lines.append(f"- Colors to avoid: {', '.join(preferences.color_avoid)}")
+            season_palette = get_palette(preferences.color_season)
+            if season_palette:
+                lines.append(
+                    f"- Personal color season: {preferences.color_season} "
+                    f"(flattering colors: {', '.join(season_palette['recommended'])}; "
+                    f"generally less flattering: {', '.join(season_palette['avoid'])})"
+                )
+                lines.append(
+                    "  When choosing between otherwise similar outfit options, prefer "
+                    "combinations built from the flattering-color list above, even if "
+                    "those specific items aren't ones the user usually pairs together - "
+                    "surfacing a good color-season match the user might not have thought "
+                    "of themselves is more valuable here than defaulting to habitual pairings."
+                )
             if preferences.style_profile:
                 profile = preferences.style_profile
                 strong = sorted(
