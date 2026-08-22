@@ -791,6 +791,40 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
+        {/* Color Season */}
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('colorSeason.title')}</CardTitle>
+            <CardDescription>{t('colorSeason.description')}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Label>{t('colorSeason.select')}</Label>
+            <Select
+              value={formData.color_season || 'none'}
+              onValueChange={(v) =>
+                updateField(
+                  'color_season',
+                  v === 'none' ? null : (v as 'spring' | 'summer' | 'autumn' | 'winter')
+                )
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">{t('colorSeason.none')}</SelectItem>
+                <SelectItem value="spring">{t('colorSeason.spring')}</SelectItem>
+                <SelectItem value="summer">{t('colorSeason.summer')}</SelectItem>
+                <SelectItem value="autumn">{t('colorSeason.autumn')}</SelectItem>
+                <SelectItem value="winter">{t('colorSeason.winter')}</SelectItem>
+              </SelectContent>
+            </Select>
+            {formData.color_season && (
+              <p className="text-sm text-muted-foreground">{t('colorSeason.hint')}</p>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Style Profile */}
         <Card>
           <CardHeader>
