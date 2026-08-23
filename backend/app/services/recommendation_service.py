@@ -23,7 +23,6 @@ from app.models.outfit import (
 from app.models.preference import UserPreference
 from app.models.user import User
 from app.services.ai_service import AIResponseTruncatedError, AIService, require_internal_ai
-from app.utils.color_seasons import get_palette
 from app.services.item_scorer import get_season, score_items
 from app.services.suggestion_cache import pop_suggestion, push_suggestions
 from app.services.weather_service import (
@@ -33,6 +32,7 @@ from app.services.weather_service import (
     WeatherServiceError,
 )
 from app.utils.clothing import deduplicate_by_body_slot
+from app.utils.color_seasons import get_palette
 from app.utils.prompts import load_prompt
 from app.utils.timezone import get_user_today
 
