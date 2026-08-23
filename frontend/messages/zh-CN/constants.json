@@ -21,7 +21,8 @@
     "tan": "棕褐色",
     "teal": "青色",
     "white": "白色",
-    "yellow": "黄色"
+    "yellow": "黄色",
+    "coral": "珊瑚色"
   },
   "occasions": {
     "casual": "休闲",
@@ -29,7 +30,9 @@
     "formal": "正式",
     "office": "办公",
     "outdoor": "户外",
-    "sporty": "运动"
+    "sporty": "运动",
+    "lecture": "讲座",
+    "presentation": "演示"
   },
   "styles": {
     "bold": "大胆",
