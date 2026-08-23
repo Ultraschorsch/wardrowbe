@@ -21,7 +21,8 @@
     "tan": "Hellbraun",
     "teal": "Petrol",
     "white": "Weiß",
-    "yellow": "Gelb"
+    "yellow": "Gelb",
+    "coral": "Koralle"
   },
   "occasions": {
     "casual": "Freizeit",
@@ -29,7 +30,9 @@
     "formal": "Formell",
     "office": "Büro",
     "outdoor": "Outdoor",
-    "sporty": "Sportlich"
+    "sporty": "Sportlich",
+    "lecture": "Vorlesung",
+    "presentation": "Präsentation"
   },
   "styles": {
     "bold": "Auffällig",
