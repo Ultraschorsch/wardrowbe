@@ -21,7 +21,8 @@
     "tan": "タン",
     "teal": "ティール",
     "white": "白",
-    "yellow": "イエロー"
+    "yellow": "イエロー",
+    "coral": "コーラル"
   },
   "occasions": {
     "casual": "カジュアル",
@@ -29,7 +30,9 @@
     "formal": "フォーマル",
     "office": "オフィス",
     "outdoor": "アウトドア",
-    "sporty": "スポーティ"
+    "sporty": "スポーティ",
+    "lecture": "講義",
+    "presentation": "プレゼンテーション"
   },
   "styles": {
     "bold": "ボールド",
