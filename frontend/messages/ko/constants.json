@@ -21,7 +21,8 @@
     "tan": "탄",
     "teal": "틸",
     "white": "화이트",
-    "yellow": "옐로"
+    "yellow": "옐로",
+    "coral": "코랄"
   },
   "occasions": {
     "casual": "캐주얼",
@@ -29,7 +30,9 @@
     "formal": "포멀",
     "office": "오피스",
     "outdoor": "아웃도어",
-    "sporty": "스포티"
+    "sporty": "스포티",
+    "lecture": "강의",
+    "presentation": "발표"
   },
   "styles": {
     "bold": "볼드",
