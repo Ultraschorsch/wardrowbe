@@ -21,7 +21,8 @@
     "tan": "Tan",
     "teal": "Teal",
     "white": "White",
-    "yellow": "Yellow"
+    "yellow": "Yellow",
+    "coral": "Coral"
   },
   "occasions": {
     "casual": "Casual",
@@ -29,7 +30,9 @@
     "formal": "Formal",
     "office": "Office",
     "outdoor": "Outdoor",
-    "sporty": "Sporty"
+    "sporty": "Sporty",
+    "lecture": "Lecture",
+    "presentation": "Presentation"
   },
   "styles": {
     "bold": "Bold",
