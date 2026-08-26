@@ -65,6 +65,9 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
       DEBUG: ${DEBUG:-false}
+      # Shared secret for trusted internal services (e.g. wardrowbe-mcp) to
+      # sync a user via /auth/sync without a full OIDC id_token.
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-}
       # OIDC (set these if using OIDC instead of forward auth)
       OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:-}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
