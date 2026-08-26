@@ -49,6 +49,21 @@ def _oidc_configured() -> bool:
     return bool(settings.oidc_issuer_url and settings.oidc_client_id)
 
 
+def _is_trusted_internal_service(request: Request) -> bool:
+    """True if the request carries a valid internal-service secret.
+
+    Lets trusted containers on the internal docker network (e.g. the
+    read-only wardrowbe-mcp server) sync a user without a full OIDC
+    id_token, even when OIDC is configured for normal browser/app logins.
+    Never expose this header path through a public-facing proxy.
+    """
+    secret = settings.internal_service_secret
+    if not secret:
+        return False
+    provided = request.headers.get("x-internal-service-secret")
+    return provided is not None and provided == secret
+
+
 MOBILE_APP_SCHEME = "wardrowbe"
 
 
@@ -99,6 +114,12 @@ async def sync_user(
 ) -> UserSyncResponse:
     await rate_limit_by_ip(request, "auth_sync", 10, 60)
     if _is_dev_mode():
+        if not sync_data.email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="email is required",
+            )
+    elif _is_trusted_internal_service(request):
         if not sync_data.email:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
