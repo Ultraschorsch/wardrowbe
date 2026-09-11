@@ -773,6 +773,136 @@ export function useBulkReanalyzeItems() {
   });
 }
 
+export interface BulkCancelAnalysisResponse {
+  cancelled: number;
+  skipped: number;
+  errors: string[];
+}
+
+export function useBulkCancelAnalysis() {
+  const queryClient = useQueryClient();
+  const { data: session } = useSession();
+
+  return useMutation({
+    mutationFn: async (params: BulkOperationParams) => {
+      if (session?.accessToken) {
+        setAccessToken(session.accessToken as string);
+      }
+      return api.post<BulkCancelAnalysisResponse>('/items/bulk/cancel-analysis', params);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['items'] });
+      queryClient.invalidateQueries({ queryKey: ['tagging-progress'] });
+    },
+  });
+}
+
+export interface BulkRotateResponse {
+  rotated: number;
+  failed: number;
+  skipped: number;
+  errors: string[];
+}
+
+export function useBulkRotateItems() {
+  const queryClient = useQueryClient();
+  const { data: session } = useSession();
+
+  return useMutation({
+    mutationFn: async (params: BulkOperationParams & { direction: 'cw' | 'ccw' }) => {
+      if (session?.accessToken) {
+        setAccessToken(session.accessToken as string);
+      }
+      return api.post<BulkRotateResponse>('/items/bulk/rotate', params);
+    },
+    onSettled: () => {
+      // Rotation is synchronous server-side, so there's nothing to optimistically
+      // guess at - just refetch once the real (already-rotated) result is in.
+      queryClient.invalidateQueries({ queryKey: ['items'] });
+    },
+  });
+}
+
+export interface BulkRemoveBackgroundResponse {
+  queued: number;
+  failed: number;
+  skipped: number;
+  already_done: number;
+  errors: string[];
+}
+
+export function useBulkRemoveBackgroundItems() {
+  const queryClient = useQueryClient();
+  const { data: session } = useSession();
+
+  return useMutation({
+    mutationFn: async (params: BulkOperationParams & { bg_color?: string }) => {
+      if (session?.accessToken) {
+        setAccessToken(session.accessToken as string);
+      }
+      return api.post<BulkRemoveBackgroundResponse>('/items/bulk/remove-background', params);
+    },
+    onMutate: async (params) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['items'] });
+
+      // Snapshot previous value
+      const previousData = queryClient.getQueriesData({ queryKey: ['items'] });
+
+      // Optimistically set items to processing status, mirroring useBulkReanalyzeItems
+      if (params.select_all) {
+        const excludedSet = new Set(params.excluded_ids || []);
+        queryClient.setQueriesData({ queryKey: ['items'] }, (old: ItemListResponse | undefined) => {
+          if (!old) return old;
+          return {
+            ...old,
+            items: old.items.map((item) =>
+              !excludedSet.has(item.id)
+                ? {
+                    ...item,
+                    status: 'processing' as const,
+                    processing_kind: 'background_removal' as const,
+                  }
+                : item
+            ),
+          };
+        });
+      } else if (params.item_ids) {
+        const itemIdSet = new Set(params.item_ids);
+        queryClient.setQueriesData({ queryKey: ['items'] }, (old: ItemListResponse | undefined) => {
+          if (!old) return old;
+          return {
+            ...old,
+            items: old.items.map((item) =>
+              itemIdSet.has(item.id)
+                ? {
+                    ...item,
+                    status: 'processing' as const,
+                    processing_kind: 'background_removal' as const,
+                  }
+                : item
+            ),
+          };
+        });
+      }
+
+      return { previousData };
+    },
+    onError: (_err, _params, context) => {
+      // Rollback on error
+      if (context?.previousData) {
+        context.previousData.forEach(([queryKey, data]) => {
+          queryClient.setQueryData(queryKey, data);
+        });
+      }
+    },
+    onSettled: () => {
+      // Refetch to ensure consistency
+      queryClient.invalidateQueries({ queryKey: ['items'] });
+    },
+  });
+}
+
 function uploadBulkItemsChunk(
   files: File[],
   skipAi: boolean,
@@ -835,6 +965,40 @@ function uploadBulkItemsChunk(
   });
 }
 
+const BULK_LIMIT_ERROR = /^Maximum (\d+) images per bulk upload$/;
+
+// Same server-side cap upload-manager.ts's durable path works around: a
+// chunk sized for the default 20 gets the whole request rejected (not just
+// the excess files) on an instance where an admin lowered
+// MAX_BULK_UPLOAD_COUNT. Split and retry within the limit the server just
+// reported instead of failing every file in the chunk.
+export async function uploadFilesWithinServerLimit(
+  files: File[],
+  skipAi: boolean,
+  token: string | null | undefined,
+  onProgress: (percent: number) => void
+): Promise<BulkUploadResponse> {
+  try {
+    return await uploadBulkItemsChunk(files, skipAi, token, onProgress);
+  } catch (error) {
+    const match =
+      error instanceof ApiError && error.status === 400
+        ? error.message.match(BULK_LIMIT_ERROR)
+        : null;
+    const limit = match ? Number(match[1]) : null;
+    if (limit && limit > 0 && limit < files.length) {
+      const responses: BulkUploadResponse[] = [];
+      for (let i = 0; i < files.length; i += limit) {
+        responses.push(
+          await uploadFilesWithinServerLimit(files.slice(i, i + limit), skipAi, token, onProgress)
+        );
+      }
+      return mergeBulkUploadResponses(responses);
+    }
+    throw error;
+  }
+}
+
 export function mergeBulkUploadResponses(responses: BulkUploadResponse[]): BulkUploadResponse {
   return responses.reduce<BulkUploadResponse>(
     (acc, response) => ({
@@ -847,7 +1011,12 @@ export function mergeBulkUploadResponses(responses: BulkUploadResponse[]): BulkU
   );
 }
 
-export function tagProcessingLabel(item: Pick<Item, 'ai_started_at'>): 'queued' | 'analyzing' {
+export function tagProcessingLabel(
+  item: Pick<Item, 'ai_started_at' | 'processing_kind'>
+): 'queued' | 'analyzing' | 'removing_background' {
+  if (item.processing_kind === 'background_removal') {
+    return 'removing_background';
+  }
   return item.ai_started_at ? 'analyzing' : 'queued';
 }
 
@@ -916,7 +1085,7 @@ export function useBulkCreateItems() {
         for (let i = 0; i < chunks.length; i++) {
           const chunkFiles = chunks[i];
           try {
-            const response = await uploadBulkItemsChunk(chunkFiles, skipAi, token, (chunkPercent) => {
+            const response = await uploadFilesWithinServerLimit(chunkFiles, skipAi, token, (chunkPercent) => {
               const overall = ((i + chunkPercent / 100) / chunks.length) * 100;
               setUploadProgress(Math.round(overall));
             });

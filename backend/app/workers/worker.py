@@ -8,6 +8,7 @@ from sqlalchemy import and_, or_, select, update
 from app.config import get_settings
 from app.models.item import ClothingItem, ItemStatus
 from app.services.ai_service import AIService
+from app.workers.background_removal import remove_item_background_job
 from app.workers.db import close_db, get_db_session, init_db
 from app.workers.notifications import (
     check_scheduled_notifications,
@@ -51,7 +52,7 @@ async def recover_stale_processing_items(ctx: dict) -> None:
     db = get_db_session(ctx)
     try:
         candidates = await db.execute(
-            select(ClothingItem.id, ClothingItem.ai_job_id).where(
+            select(ClothingItem.id, ClothingItem.ai_job_id, ClothingItem.processing_kind).where(
                 ClothingItem.status == ItemStatus.processing,
                 or_(
                     and_(
@@ -66,20 +67,28 @@ async def recover_stale_processing_items(ctx: dict) -> None:
             )
         )
         condemned = 0
-        for item_id, ai_job_id in candidates.all():
+        for item_id, ai_job_id, processing_kind in candidates.all():
             lost = ai_job_id is None
             if not lost:
                 job_status = await Job(ai_job_id, redis, _queue_name="arq:tagging").status()
                 lost = job_status in (JobStatus.not_found, JobStatus.complete)
             if lost:
+                # A background-removal row never touched AI tagging, so
+                # condemning it must not write ai_raw_response/ai_failed_at -
+                # doing so would start a bogus AI retry cooldown
+                # (claim_error_items_for_retry keys off ai_failed_at).
+                if processing_kind == "background_removal":
+                    values = {"status": ItemStatus.error}
+                else:
+                    values = {
+                        "status": ItemStatus.error,
+                        "ai_raw_response": {"error": "Job lost or timed out"},
+                        "ai_failed_at": datetime.now(UTC),
+                    }
                 result = await db.execute(
                     update(ClothingItem)
                     .where(ClothingItem.id == item_id, ClothingItem.status == ItemStatus.processing)
-                    .values(
-                        status=ItemStatus.error,
-                        ai_raw_response={"error": "Job lost or timed out"},
-                        ai_failed_at=datetime.now(UTC),
-                    )
+                    .values(**values)
                 )
                 condemned += result.rowcount
         await db.commit()
@@ -110,6 +119,7 @@ async def shutdown(ctx: dict) -> None:
 class WorkerSettings:
     functions = [
         tag_item_image,
+        remove_item_background_job,
         send_notification,
         retry_failed_notifications,
         check_scheduled_notifications,
@@ -131,10 +141,9 @@ class WorkerSettings:
 
     redis_settings = get_redis_settings()
 
-    # This pool is shared with the lightweight cron jobs above (notifications,
-    # the sweep), not an exact AI-call ceiling - see AI_TAGGING_CONCURRENCY in
-    # .env.example for the tradeoff. Real AI-call concurrency is at or below
-    # this value.
+    # The only AI concurrency bound (see ai_tagging_concurrency in config.py).
+    # The cron jobs above share this pool and arq drains one queue oldest-first,
+    # so during a large import they run after the backlog whatever this value is.
     max_jobs = get_settings().ai_tagging_concurrency
     job_timeout = worker_job_timeout_seconds()
     max_tries = TAGGING_MAX_TRIES

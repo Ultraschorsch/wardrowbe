@@ -48,21 +48,28 @@
     "uploading": "업로드 중..."
   },
   "ai": {
+    "backgroundRemovalFailed": "Background removal failed",
     "analysisFailed": "분석 실패",
     "analyzing": "AI 분석 중...",
     "analyzingCount": "{count}개 분석 중",
     "analyzingElapsed": "Analyzing… {elapsed}",
     "analyzingProgress": "{count}개 분석 중 · {percent}% 완료",
+    "cancelAll": "Cancel all",
     "completeness": "AI 완성도: {percent}%",
     "confident": "{percent}% 확신",
     "dismiss": "닫기",
     "failedCount": "{count}개 실패",
     "queued": "Queued",
     "queuedCount": "{count} queued",
+    "removeBackgroundQueued": "Queued for background removal",
+    "removingBackground": "Removing background...",
+    "removingBackgroundElapsed": "Removing background… {elapsed}",
     "retryCooldown": "{seconds, plural, one {Retry available in # second} other {Retry available in # seconds}}"
   },
   "allTypes": "전체 유형",
   "bulkActions": {
+    "cancelAllError": "Failed to cancel analysis",
+    "cancelAllQueued": "{count, plural, one {Cancelled # in-progress analysis} other {Cancelled # in-progress analyses}}",
     "deleteError": "아이템 삭제 실패",
     "deletePartialFailed": "{count, plural, other {아이템 #개 삭제 실패}}",
     "deleteSuccess": "{count, plural, other {아이템 #개를 삭제했어요}}",
@@ -71,7 +78,18 @@
     "reanalyzeMany": "{count}개 아이템이 재분석 대기열에 추가되었어요. 시간이 걸릴 수 있어요.",
     "reanalyzePartialFailed": "{count, plural, other {아이템 #개 대기열 추가 실패}}",
     "reanalyzeQueued": "{count, plural, other {아이템 #개를 재분석 대기열에 추가했어요}}",
-    "reanalyzeSkipped": "{count, plural, one {# item already analyzing} other {# items already analyzing}}"
+    "reanalyzeSkipped": "{count, plural, one {# item already analyzing} other {# items already analyzing}}",
+    "removeBackgroundAlreadyDone": "{count, plural, one {# item already had its background removed} other {# items already had their background removed}}",
+    "removeBackgroundConfirmDescription": "This will remove the background from {count, plural, one {# selected item} other {# selected items}}. The original photo is kept and can be restored per item afterward.",
+    "removeBackgroundConfirmTitle": "Remove background from {count, plural, one {# item} other {# items}}?",
+    "removeBackgroundError": "Failed to queue background removal",
+    "removeBackgroundPartialFailed": "{count, plural, one {Failed to queue # item} other {Failed to queue # items}}",
+    "removeBackgroundQueued": "{count, plural, one {Queued # item for background removal} other {Queued # items for background removal}}",
+    "removeBackgroundSkipped": "{count, plural, one {# item already processing} other {# items already processing}}",
+    "rotateError": "Failed to rotate items",
+    "rotatePartialFailed": "{count, plural, one {Failed to rotate # item} other {Failed to rotate # items}}",
+    "rotateSkipped": "{count, plural, one {# item skipped (already processing)} other {# items skipped (already processing)}}",
+    "rotateSuccess": "{count, plural, one {# item rotated} other {# items rotated}}"
   },
   "bulkDelete": {
     "confirmDescription": "선택한 아이템과 이미지가 영구적으로 삭제돼요. 이 작업은 되돌릴 수 없어요.",
@@ -206,6 +224,7 @@
   "uploadQueue": {
     "remaining": "{count, plural, one {# photo uploading in the background} other {# photos uploading in the background}}",
     "keepTabOpen": "Keep this tab open until this finishes",
+    "cancel": "Cancel",
     "storageNotPersisted": "Your browser may clear queued photos if you navigate away before this finishes",
     "resuming": "Resuming {count, plural, one {# photo} other {# photos}} from an earlier import",
     "failedCount": "{count, plural, one {# photo could not be uploaded} other {# photos could not be uploaded}}",
