@@ -144,5 +144,16 @@
     "unit": "Unité de température"
   },
   "title": "Paramètres",
-  "unsavedChanges": "Vous avez des modifications non enregistrées. Quitter cette page ?"
+  "unsavedChanges": "Vous avez des modifications non enregistrées. Quitter cette page ?",
+  "colorSeason": {
+    "title": "Saison de couleurs",
+    "description": "Facultatif : définissez votre type de saison de couleurs personnelle pour des suggestions de tenues aux couleurs qui vous mettent en valeur.",
+    "select": "Votre saison de couleurs",
+    "none": "Non défini",
+    "spring": "Printemps",
+    "summer": "Été",
+    "autumn": "Automne",
+    "winter": "Hiver",
+    "hint": "Les recommandations privilégieront des combinaisons flatteuses pour cette saison, y compris des associations que vous n'auriez peut-être pas essayées vous-même."
+  }
 }

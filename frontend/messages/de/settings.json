@@ -144,5 +144,16 @@
     "unit": "Temperatureinheit"
   },
   "title": "Einstellungen",
-  "unsavedChanges": "Du hast ungespeicherte Änderungen. Diese Seite verlassen?"
+  "unsavedChanges": "Du hast ungespeicherte Änderungen. Diese Seite verlassen?",
+  "colorSeason": {
+    "title": "Farbtyp",
+    "description": "Optional: Lege deinen persönlichen Farbtyp fest, damit Outfit-Vorschläge Farben bevorzugen, die zu dir passen.",
+    "select": "Dein Farbtyp",
+    "none": "Nicht festgelegt",
+    "spring": "Frühlingstyp",
+    "summer": "Sommertyp",
+    "autumn": "Herbsttyp",
+    "winter": "Wintertyp",
+    "hint": "Empfehlungen bevorzugen dann passende Farbkombinationen für diesen Typ – auch Kombis, die du selbst vielleicht nicht ausprobiert hättest."
+  }
 }

@@ -21,7 +21,8 @@
     "tan": "Fauve",
     "teal": "Bleu canard",
     "white": "Blanc",
-    "yellow": "Jaune"
+    "yellow": "Jaune",
+    "coral": "Corail"
   },
   "occasions": {
     "casual": "Décontracté",
@@ -29,7 +30,9 @@
     "formal": "Habillé",
     "office": "Bureau",
     "outdoor": "Plein air",
-    "sporty": "Sportif"
+    "sporty": "Sportif",
+    "lecture": "Cours",
+    "presentation": "Présentation"
   },
   "styles": {
     "bold": "Audacieux",

@@ -28,6 +28,7 @@ class PreferenceService:
             user_id=user_id,
             color_favorites=[],
             color_avoid=[],
+            color_season=None,
             style_profile={
                 "casual": 50,
                 "formal": 50,

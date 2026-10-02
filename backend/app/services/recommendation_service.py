@@ -32,6 +32,7 @@ from app.services.weather_service import (
     WeatherServiceError,
 )
 from app.utils.clothing import canonical_item_order, deduplicate_by_body_slot
+from app.utils.color_seasons import get_palette
 from app.utils.prompts import load_prompt
 from app.utils.timezone import get_user_today
 
@@ -366,6 +367,20 @@ class RecommendationService:
                 lines.append(f"- Favorite colors: {', '.join(preferences.color_favorites)}")
             if preferences.color_avoid:
                 lines.append(f"- Colors to avoid: {', '.join(preferences.color_avoid)}")
+            season_palette = get_palette(preferences.color_season)
+            if season_palette:
+                lines.append(
+                    f"- Personal color season: {preferences.color_season} "
+                    f"(flattering colors: {', '.join(season_palette['recommended'])}; "
+                    f"generally less flattering: {', '.join(season_palette['avoid'])})"
+                )
+                lines.append(
+                    "  When choosing between otherwise similar outfit options, prefer "
+                    "combinations built from the flattering-color list above, even if "
+                    "those specific items aren't ones the user usually pairs together - "
+                    "surfacing a good color-season match the user might not have thought "
+                    "of themselves is more valuable here than defaulting to habitual pairings."
+                )
             if preferences.style_profile:
                 profile = preferences.style_profile
                 strong = sorted(
