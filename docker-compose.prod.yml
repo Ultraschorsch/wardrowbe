@@ -153,7 +153,9 @@ services:
   # Local image work (rotation, background removal) on its own queue, so a bulk
   # batch of it cannot block AI tagging behind it.
   image-worker:
-    image: ghcr.io/anyesh/wardrowbe:backend-latest
+    image: wardrowbe-fork-backend:local
+    build:
+      context: ./backend
     container_name: wardrobe_image_worker
     restart: unless-stopped
     command: arq app.workers.image_worker.ImageWorkerSettings
