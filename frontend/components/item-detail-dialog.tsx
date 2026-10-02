@@ -472,25 +472,29 @@ export function ItemDetailDialog({ item, open, onOpenChange }: ItemDetailDialogP
                     e.target.value = '';
                   }}
                 />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    // Re-read the item on entering edit mode: tagging can finish while the
-                    // dialog is open (same id, so the effect above doesn't re-run).
-                    if (!isEditing) setEditForm(editFormFromItem(item));
-                    setIsEditing(!isEditing);
-                  }}
-                  title={isEditing ? t('actions.cancelEditing') : t('actions.editItem')}
-                >
-                  {isEditing ? (
-                    <X className="h-5 w-5" />
-                  ) : (
-                    <Pencil className="h-5 w-5" />
-                  )}
-                </Button>
               </div>
             </div>
+            {/* Pinned outside the scrollable action row: edit is the most-used
+                action here, so it must stay reachable even when the row above
+                scrolls off (long name, many actions, or a narrow phone). */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="flex-shrink-0"
+              onClick={() => {
+                // Re-read the item on entering edit mode: tagging can finish while the
+                // dialog is open (same id, so the effect above doesn't re-run).
+                if (!isEditing) setEditForm(editFormFromItem(item));
+                setIsEditing(!isEditing);
+              }}
+              title={isEditing ? t('actions.cancelEditing') : t('actions.editItem')}
+            >
+              {isEditing ? (
+                <X className="h-5 w-5" />
+              ) : (
+                <Pencil className="h-5 w-5" />
+              )}
+            </Button>
             <Button
               variant="ghost"
               size="icon"
