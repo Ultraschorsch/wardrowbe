@@ -90,11 +90,16 @@ class ItemResponse(ItemBase):
             if isinstance(data, dict)
             else getattr(data, "ai_raw_response", None)
         )
-        if isinstance(raw, dict) and raw.get("error"):
-            if isinstance(data, dict):
-                data["ai_error"] = raw["error"]
-            else:
-                data.ai_error = raw["error"]
+        if isinstance(raw, dict):
+            # Same idea for a type the model named but the vocabulary rejected:
+            # lets the UI say "detected 'tights', not a supported type" rather
+            # than a bare "unknown".
+            for src, dest in (("error", "ai_error"), ("unrecognized_type", "ai_unrecognized_type")):
+                if raw.get(src):
+                    if isinstance(data, dict):
+                        data[dest] = raw[src]
+                    else:
+                        setattr(data, dest, raw[src])
         return data
 
     id: UUID
@@ -116,6 +121,7 @@ class ItemResponse(ItemBase):
     ai_confidence: Decimal | None = None
     ai_description: str | None = None
     ai_error: str | None = None
+    ai_unrecognized_type: str | None = None
     ai_started_at: datetime | None = None
     processing_kind: str | None = None
     tagging_status: str = "pending"
@@ -164,6 +170,30 @@ class ItemResponse(ItemBase):
         return DEFAULT_WASH_INTERVALS.get(self.type, 3)
 
 
+class AnalysisInProgress(BaseModel):
+    item_id: UUID
+    name: str | None = None
+    type: str
+    image_url: str | None = None
+    started_at: datetime
+
+
+class AnalysisCompletion(BaseModel):
+    item_id: UUID
+    name: str | None = None
+    type: str
+    duration_seconds: float | None = None
+    completed_at: datetime
+
+
+class AnalysisFailure(BaseModel):
+    item_id: UUID
+    name: str | None = None
+    type: str
+    error: str | None = None
+    failed_at: datetime | None = None
+
+
 class TaggingProgressResponse(BaseModel):
     processing: int
     queued: int
@@ -171,6 +201,18 @@ class TaggingProgressResponse(BaseModel):
     failed: int
     completed: int
     total: int
+    # Scoped to the run the user is watching rather than the whole wardrobe, so
+    # an import into a populated wardrobe reads "1 of 90" instead of opening at
+    # 69% and creeping. See get_tagging_progress for how the run is anchored.
+    batch_total: int = 0
+    batch_completed: int = 0
+    batch_failed: int = 0
+    current: list[AnalysisInProgress] = Field(default_factory=list)
+    recent: list[AnalysisCompletion] = Field(default_factory=list)
+    failures: list[AnalysisFailure] = Field(default_factory=list)
+    avg_duration_seconds: float | None = None
+    eta_seconds: float | None = None
+    concurrency: int = 1
 
 
 class ItemListResponse(BaseModel):
@@ -227,7 +269,7 @@ class BulkFilters(BaseModel):
     is_archived: bool | None = None
 
 
-class BulkDeleteRequest(BaseModel):
+class BulkSelectionRequest(BaseModel):
     # Explicit selection
     item_ids: list[UUID] | None = None
 
@@ -236,6 +278,12 @@ class BulkDeleteRequest(BaseModel):
     excluded_ids: list[UUID] | None = None
     filters: BulkFilters | None = None
 
+    # Cursor into a select_all walk: the id the previous batch stopped at. Bulk
+    # actions are capped per request, so a wardrobe larger than the cap is
+    # walked batch by batch rather than rejected outright, which is the only
+    # option a client holding filters instead of ids has.
+    after_id: UUID | None = None
+
     def model_post_init(self, __context):
         if not self.select_all and not self.item_ids:
             raise ValueError("Either item_ids or select_all=True must be provided")
@@ -243,29 +291,28 @@ class BulkDeleteRequest(BaseModel):
             raise ValueError("Cannot use both item_ids and select_all")
 
 
-class BulkDeleteResponse(BaseModel):
+class BulkBatchResponse(BaseModel):
+    # Set when a select_all walk stopped at the per-request cap; the client
+    # repeats the request with after_id=next_cursor until has_more is false.
+    next_cursor: UUID | None = None
+    has_more: bool = False
+
+
+class BulkDeleteRequest(BulkSelectionRequest):
+    pass
+
+
+class BulkDeleteResponse(BulkBatchResponse):
     deleted: int
     failed: int
     errors: list[str] = Field(default_factory=list)
 
 
-class BulkAnalyzeRequest(BaseModel):
-    # Explicit selection
-    item_ids: list[UUID] | None = None
-
-    # Select all with exceptions
-    select_all: bool = False
-    excluded_ids: list[UUID] | None = None
-    filters: BulkFilters | None = None
-
-    def model_post_init(self, __context):
-        if not self.select_all and not self.item_ids:
-            raise ValueError("Either item_ids or select_all=True must be provided")
-        if self.select_all and self.item_ids:
-            raise ValueError("Cannot use both item_ids and select_all")
+class BulkAnalyzeRequest(BulkSelectionRequest):
+    pass
 
 
-class BulkAnalyzeResponse(BaseModel):
+class BulkAnalyzeResponse(BulkBatchResponse):
     queued: int
     failed: int
     skipped: int = 0
@@ -274,80 +321,40 @@ class BulkAnalyzeResponse(BaseModel):
     errors: list[str] = Field(default_factory=list)
 
 
-class BulkCancelAnalysisRequest(BaseModel):
-    # Explicit selection
-    item_ids: list[UUID] | None = None
-
-    # Select all with exceptions
-    select_all: bool = False
-    excluded_ids: list[UUID] | None = None
-    filters: BulkFilters | None = None
-
-    def model_post_init(self, __context):
-        if not self.select_all and not self.item_ids:
-            raise ValueError("Either item_ids or select_all=True must be provided")
-        if self.select_all and self.item_ids:
-            raise ValueError("Cannot use both item_ids and select_all")
+class BulkCancelAnalysisRequest(BulkSelectionRequest):
+    pass
 
 
-class BulkCancelAnalysisResponse(BaseModel):
+class BulkCancelAnalysisResponse(BulkBatchResponse):
     cancelled: int
     skipped: int = 0
     errors: list[str] = Field(default_factory=list)
 
 
-class BulkRotateRequest(BaseModel):
-    # Explicit selection
-    item_ids: list[UUID] | None = None
-
-    # Select all with exceptions
-    select_all: bool = False
-    excluded_ids: list[UUID] | None = None
-    filters: BulkFilters | None = None
-
+class BulkRotateRequest(BulkSelectionRequest):
     direction: str = Field(
         "cw",
         pattern="^(cw|ccw)$",
         description="Rotation direction applied to every selected item",
     )
 
-    def model_post_init(self, __context):
-        if not self.select_all and not self.item_ids:
-            raise ValueError("Either item_ids or select_all=True must be provided")
-        if self.select_all and self.item_ids:
-            raise ValueError("Cannot use both item_ids and select_all")
 
-
-class BulkRotateResponse(BaseModel):
-    rotated: int
+class BulkRotateResponse(BulkBatchResponse):
+    queued: int
     failed: int
     skipped: int = 0
     errors: list[str] = Field(default_factory=list)
 
 
-class BulkRemoveBackgroundRequest(BaseModel):
-    # Explicit selection
-    item_ids: list[UUID] | None = None
-
-    # Select all with exceptions
-    select_all: bool = False
-    excluded_ids: list[UUID] | None = None
-    filters: BulkFilters | None = None
-
+class BulkRemoveBackgroundRequest(BulkSelectionRequest):
     bg_color: str = Field(
         default="#FFFFFF",
         pattern=r"^#[0-9A-Fa-f]{6}$",
         description="Hex color for the replacement background",
     )
 
-    def model_post_init(self, __context):
-        if not self.select_all and not self.item_ids:
-            raise ValueError("Either item_ids or select_all=True must be provided")
-        if self.select_all and self.item_ids:
-            raise ValueError("Cannot use both item_ids and select_all")
 
-
-class BulkRemoveBackgroundResponse(BaseModel):
+class BulkRemoveBackgroundResponse(BulkBatchResponse):
     queued: int
     failed: int
     skipped: int = 0

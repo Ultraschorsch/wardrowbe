@@ -20,7 +20,7 @@ export interface Item {
   id: string;
   user_id: string;
   type: string;
-  subtype?: string;
+  subtype?: string | null;
   name?: string;
   brand?: string;
   notes?: string;
@@ -42,8 +42,9 @@ export interface Item {
   ai_confidence?: number;
   ai_description?: string;
   ai_error?: string | null;
+  ai_unrecognized_type?: string | null;
   ai_started_at?: string | null;
-  processing_kind?: 'background_removal' | null;
+  processing_kind?: 'background_removal' | 'rotate' | null;
   tagging_status: 'pending' | 'tagged';
   tagged_by?: 'auto' | 'manual' | null;
   tagged_at?: string | null;
@@ -73,6 +74,30 @@ export interface ItemListResponse {
   has_more: boolean;
 }
 
+export interface AnalysisInProgress {
+  item_id: string;
+  name?: string | null;
+  type: string;
+  image_url?: string | null;
+  started_at: string;
+}
+
+export interface AnalysisCompletion {
+  item_id: string;
+  name?: string | null;
+  type: string;
+  duration_seconds?: number | null;
+  completed_at: string;
+}
+
+export interface AnalysisFailure {
+  item_id: string;
+  name?: string | null;
+  type: string;
+  error?: string | null;
+  failed_at?: string | null;
+}
+
 export interface TaggingProgress {
   processing: number;
   queued: number;
@@ -80,6 +105,17 @@ export interface TaggingProgress {
   failed: number;
   completed: number;
   total: number;
+  // Scoped to the run in flight rather than the wardrobe, so an import into a
+  // populated wardrobe does not open at 70% and creep.
+  batch_total: number;
+  batch_completed: number;
+  batch_failed: number;
+  current: AnalysisInProgress[];
+  recent: AnalysisCompletion[];
+  failures: AnalysisFailure[];
+  avg_duration_seconds?: number | null;
+  eta_seconds?: number | null;
+  concurrency: number;
 }
 
 export interface ItemFilter {
@@ -196,6 +232,23 @@ export const CLOTHING_TYPES = [
   { label: 'Top', value: 'top' },
   { label: 'Vest', value: 'vest' },
 ] as const;
+
+// Suggested subtypes per type. Mirrors the SUBTYPE examples in clothing_analysis.txt.
+// Subtype is free text on the backend (and the model may answer outside this list),
+// so these are suggestions, not a closed set.
+export const CLOTHING_SUBTYPES: Record<string, readonly string[]> = {
+  shirt: ['henley', 'button-down', 'oxford', 'flannel', 'hawaiian', 'camp-collar'],
+  pants: ['chinos', 'joggers', 'cargo', 'trousers', 'leggings', 'sweatpants'],
+  dress: ['sundress', 'slip-dress', 'maxi', 'midi', 'wrap', 'shirt-dress', 'a-line'],
+  jacket: ['denim-jacket', 'bomber', 'parka', 'windbreaker', 'trucker', 'anorak'],
+  shoes: ['loafers', 'oxfords', 'mules', 'flats', 'heels', 'platforms'],
+  sneakers: ['low-top', 'high-top', 'chunky', 'slip-on'],
+  boots: ['ankle', 'chelsea', 'combat', 'knee-high', 'rain'],
+  skirt: ['mini', 'midi', 'maxi', 'pleated', 'wrap', 'pencil'],
+  sweater: ['pullover', 'crewneck', 'turtleneck', 'v-neck'],
+  socks: ['ankle', 'crew', 'knee-high', 'no-show', 'dress', 'athletic'],
+  tie: ['necktie', 'bow-tie', 'bolo'],
+};
 
 export const OCCASIONS = [
   { label: 'Casual', value: 'casual' },

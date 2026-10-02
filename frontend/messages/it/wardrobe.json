@@ -48,23 +48,47 @@
     "uploading": "Caricamento in corso..."
   },
   "ai": {
-    "backgroundRemovalFailed": "Background removal failed",
     "analysisFailed": "Analisi fallita",
     "analyzing": "Analisi IA in corso...",
     "analyzingCount": "{count} in analisi",
     "analyzingElapsed": "Analyzing… {elapsed}",
     "analyzingProgress": "{count} in analisi · {percent}% completato",
+    "backgroundRemovalFailed": "Background removal failed",
     "cancelAll": "Cancel all",
     "completeness": "Completezza IA: {percent}%",
     "confident": "{percent}% fiducia",
     "dismiss": "Ignora",
     "failedCount": "{count} falliti",
+    "queue": {
+      "title": "AI analysis queue",
+      "description": "What the analyzer is working on right now, and how the current batch is going.",
+      "idle": "Nothing is waiting for analysis.",
+      "batchProgress": "{done} of {total} analyzed",
+      "percentDone": "{percent}% done",
+      "batchFailed": "{count, plural, one {# item failed} other {# items failed}}",
+      "nowAnalyzing": "Analyzing now",
+      "waitingToStart": "Waiting for the worker to pick up the next item.",
+      "averageLabel": "Average per item",
+      "remainingLabel": "Estimated time left",
+      "noEstimateYet": "Not enough data yet",
+      "recentlyFinished": "Recently finished",
+      "durationUnknown": "Duration unknown",
+      "failedHeading": "Failed",
+      "unknownError": "No reason was reported.",
+      "unnamedItem": "Untitled item",
+      "concurrency": "{count, plural, one {This instance analyzes # item at a time.} other {This instance analyzes # items at a time.}}",
+      "concurrencyLink": "Change this",
+      "open": "View queue"
+    },
     "queued": "Queued",
     "queuedCount": "{count} queued",
     "removeBackgroundQueued": "Queued for background removal",
     "removingBackground": "Removing background...",
     "removingBackgroundElapsed": "Removing background… {elapsed}",
-    "retryCooldown": "{seconds, plural, one {Retry available in # second} other {Retry available in # seconds}}"
+    "retryCooldown": "{seconds, plural, one {Retry available in # second} other {Retry available in # seconds}}",
+    "rotateFailed": "Rotation failed",
+    "rotateQueued": "Queued for rotation",
+    "rotating": "Rotating…"
   },
   "allTypes": "Tutti i tipi",
   "bulkActions": {
@@ -88,8 +112,8 @@
     "removeBackgroundSkipped": "{count, plural, one {# item already processing} other {# items already processing}}",
     "rotateError": "Failed to rotate items",
     "rotatePartialFailed": "{count, plural, one {Failed to rotate # item} other {Failed to rotate # items}}",
-    "rotateSkipped": "{count, plural, one {# item skipped (already processing)} other {# items skipped (already processing)}}",
-    "rotateSuccess": "{count, plural, one {# item rotated} other {# items rotated}}"
+    "rotateQueued": "{count, plural, one {Queued # item for rotation} other {Queued # items for rotation}}",
+    "rotateSkipped": "{count, plural, one {# item skipped (already processing)} other {# items skipped (already processing)}}"
   },
   "bulkDelete": {
     "confirmDescription": "Questo eliminerà definitivamente i capi selezionati e le relative immagini. Questa azione non può essere annullata.",
@@ -156,9 +180,11 @@
       "brandName": "Nome marca",
       "itemName": "Nome capo",
       "selectColor": "Seleziona colore",
+      "subtype": "es. leggings, chelsea",
       "washIntervalDefault": "Predefinito: {count}"
     },
     "primaryColor": "Colore principale",
+    "subtype": "Sottotipo",
     "titles": {
       "analysisInProgress": "Analisi in corso...",
       "deleteImage": "Elimina immagine",
@@ -169,10 +195,12 @@
       "rotateLeft": "Ruota a sinistra",
       "rotateRight": "Ruota a destra",
       "setAsPrimary": "Imposta come principale",
-      "toggleFavorite": "Attiva/disattiva preferito",
+      "suggestOutfit": "Crea outfit con questo capo",
+      "toggleFavorite": "Aggiungi/rimuovi dai preferiti",
       "undoBackgroundRemoval": "Annulla rimozione sfondo"
     },
     "type": "Tipo",
+    "unrecognizedType": "L’IA ha rilevato “{value}”, che non è un tipo supportato. Scegli il tipo più vicino qui sotto; puoi mantenere “{value}” come sottotipo.",
     "view": {
       "addedDate": "Aggiunto il {date}",
       "aiAnalysis": "Analisi IA",

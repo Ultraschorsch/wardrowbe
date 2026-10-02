@@ -48,23 +48,47 @@
     "uploading": "上传中..."
   },
   "ai": {
-    "backgroundRemovalFailed": "Background removal failed",
     "analysisFailed": "分析失败",
     "analyzing": "AI 分析中...",
     "analyzingCount": "{count} 件分析中",
     "analyzingElapsed": "Analyzing… {elapsed}",
     "analyzingProgress": "{count} 件分析中 · 已完成 {percent}%",
+    "backgroundRemovalFailed": "Background removal failed",
     "cancelAll": "Cancel all",
     "completeness": "AI 完整度：{percent}%",
     "confident": "{percent}% 置信度",
     "dismiss": "关闭",
     "failedCount": "{count} 件失败",
+    "queue": {
+      "title": "AI analysis queue",
+      "description": "What the analyzer is working on right now, and how the current batch is going.",
+      "idle": "Nothing is waiting for analysis.",
+      "batchProgress": "{done} of {total} analyzed",
+      "percentDone": "{percent}% done",
+      "batchFailed": "{count, plural, one {# item failed} other {# items failed}}",
+      "nowAnalyzing": "Analyzing now",
+      "waitingToStart": "Waiting for the worker to pick up the next item.",
+      "averageLabel": "Average per item",
+      "remainingLabel": "Estimated time left",
+      "noEstimateYet": "Not enough data yet",
+      "recentlyFinished": "Recently finished",
+      "durationUnknown": "Duration unknown",
+      "failedHeading": "Failed",
+      "unknownError": "No reason was reported.",
+      "unnamedItem": "Untitled item",
+      "concurrency": "{count, plural, one {This instance analyzes # item at a time.} other {This instance analyzes # items at a time.}}",
+      "concurrencyLink": "Change this",
+      "open": "View queue"
+    },
     "queued": "Queued",
     "queuedCount": "{count} queued",
     "removeBackgroundQueued": "Queued for background removal",
     "removingBackground": "Removing background...",
     "removingBackgroundElapsed": "Removing background… {elapsed}",
-    "retryCooldown": "{seconds, plural, one {Retry available in # second} other {Retry available in # seconds}}"
+    "retryCooldown": "{seconds, plural, one {Retry available in # second} other {Retry available in # seconds}}",
+    "rotateFailed": "Rotation failed",
+    "rotateQueued": "Queued for rotation",
+    "rotating": "Rotating…"
   },
   "allTypes": "所有类型",
   "bulkActions": {
@@ -88,8 +112,8 @@
     "removeBackgroundSkipped": "{count, plural, one {# item already processing} other {# items already processing}}",
     "rotateError": "Failed to rotate items",
     "rotatePartialFailed": "{count, plural, one {Failed to rotate # item} other {Failed to rotate # items}}",
-    "rotateSkipped": "{count, plural, one {# item skipped (already processing)} other {# items skipped (already processing)}}",
-    "rotateSuccess": "{count, plural, one {# item rotated} other {# items rotated}}"
+    "rotateQueued": "{count, plural, one {Queued # item for rotation} other {Queued # items for rotation}}",
+    "rotateSkipped": "{count, plural, one {# item skipped (already processing)} other {# items skipped (already processing)}}"
   },
   "bulkDelete": {
     "confirmDescription": "这将永久删除所选单品及其图片。此操作不可撤销。",
@@ -156,9 +180,11 @@
       "brandName": "品牌名称",
       "itemName": "单品名称",
       "selectColor": "选择颜色",
+      "subtype": "例如：打底裤、切尔西",
       "washIntervalDefault": "默认：{count}"
     },
     "primaryColor": "主要颜色",
+    "subtype": "子类型",
     "titles": {
       "analysisInProgress": "分析进行中...",
       "deleteImage": "删除图片",
@@ -169,10 +195,12 @@
       "rotateLeft": "向左旋转",
       "rotateRight": "向右旋转",
       "setAsPrimary": "设为主图",
+      "suggestOutfit": "用这件衣物创建穿搭",
       "toggleFavorite": "切换收藏",
       "undoBackgroundRemoval": "撤销背景去除"
     },
     "type": "类型",
+    "unrecognizedType": "AI 识别为“{value}”，但这不是支持的类型。请在下方选择最接近的类型；可以将“{value}”保留为子类型。",
     "view": {
       "addedDate": "添加于{date}",
       "aiAnalysis": "AI 分析",

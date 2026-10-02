@@ -48,23 +48,47 @@
     "uploading": "アップロード中..."
   },
   "ai": {
-    "backgroundRemovalFailed": "Background removal failed",
     "analysisFailed": "分析失敗",
     "analyzing": "AI分析中...",
     "analyzingCount": "{count} 件を分析中",
     "analyzingElapsed": "Analyzing… {elapsed}",
     "analyzingProgress": "{count} 件を分析中 · {percent}% 完了",
+    "backgroundRemovalFailed": "Background removal failed",
     "cancelAll": "Cancel all",
     "completeness": "AI完了度：{percent}%",
     "confident": "信頼度 {percent}%",
     "dismiss": "閉じる",
     "failedCount": "{count} 件が失敗",
+    "queue": {
+      "title": "AI analysis queue",
+      "description": "What the analyzer is working on right now, and how the current batch is going.",
+      "idle": "Nothing is waiting for analysis.",
+      "batchProgress": "{done} of {total} analyzed",
+      "percentDone": "{percent}% done",
+      "batchFailed": "{count, plural, one {# item failed} other {# items failed}}",
+      "nowAnalyzing": "Analyzing now",
+      "waitingToStart": "Waiting for the worker to pick up the next item.",
+      "averageLabel": "Average per item",
+      "remainingLabel": "Estimated time left",
+      "noEstimateYet": "Not enough data yet",
+      "recentlyFinished": "Recently finished",
+      "durationUnknown": "Duration unknown",
+      "failedHeading": "Failed",
+      "unknownError": "No reason was reported.",
+      "unnamedItem": "Untitled item",
+      "concurrency": "{count, plural, one {This instance analyzes # item at a time.} other {This instance analyzes # items at a time.}}",
+      "concurrencyLink": "Change this",
+      "open": "View queue"
+    },
     "queued": "Queued",
     "queuedCount": "{count} queued",
     "removeBackgroundQueued": "Queued for background removal",
     "removingBackground": "Removing background...",
     "removingBackgroundElapsed": "Removing background… {elapsed}",
-    "retryCooldown": "{seconds, plural, one {Retry available in # second} other {Retry available in # seconds}}"
+    "retryCooldown": "{seconds, plural, one {Retry available in # second} other {Retry available in # seconds}}",
+    "rotateFailed": "Rotation failed",
+    "rotateQueued": "Queued for rotation",
+    "rotating": "Rotating…"
   },
   "allTypes": "すべてのタイプ",
   "bulkActions": {
@@ -88,8 +112,8 @@
     "removeBackgroundSkipped": "{count, plural, one {# item already processing} other {# items already processing}}",
     "rotateError": "Failed to rotate items",
     "rotatePartialFailed": "{count, plural, one {Failed to rotate # item} other {Failed to rotate # items}}",
-    "rotateSkipped": "{count, plural, one {# item skipped (already processing)} other {# items skipped (already processing)}}",
-    "rotateSuccess": "{count, plural, one {# item rotated} other {# items rotated}}"
+    "rotateQueued": "{count, plural, one {Queued # item for rotation} other {Queued # items for rotation}}",
+    "rotateSkipped": "{count, plural, one {# item skipped (already processing)} other {# items skipped (already processing)}}"
   },
   "bulkDelete": {
     "confirmDescription": "選択したアイテムと画像を完全に削除します。この操作は取り消せません。",
@@ -156,9 +180,11 @@
       "brandName": "ブランド名",
       "itemName": "アイテム名",
       "selectColor": "色を選択",
+      "subtype": "例：レギンス、チェルシー",
       "washIntervalDefault": "デフォルト：{count}"
     },
     "primaryColor": "メインカラー",
+    "subtype": "サブタイプ",
     "titles": {
       "analysisInProgress": "分析中...",
       "deleteImage": "画像を削除",
@@ -168,11 +194,13 @@
       "replaceImage": "画像を置き換え",
       "rotateLeft": "左に回転",
       "rotateRight": "右に回転",
-      "setAsPrimary": "メインに設定",
-      "toggleFavorite": "お気に入りを切替",
+      "setAsPrimary": "メイン画像に設定",
+      "suggestOutfit": "このアイテムでコーデを作成",
+      "toggleFavorite": "お気に入りを切り替え",
       "undoBackgroundRemoval": "背景削除を元に戻す"
     },
     "type": "タイプ",
+    "unrecognizedType": "AIは「{value}」と判定しましたが、対応していない種類です。下から最も近い種類を選んでください。「{value}」はサブタイプとして残せます。",
     "view": {
       "addedDate": "{date}に追加",
       "aiAnalysis": "AI分析",

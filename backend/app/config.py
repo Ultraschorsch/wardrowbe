@@ -1,7 +1,7 @@
 import logging
 from functools import lru_cache
 
-from pydantic import Field, PostgresDsn, RedisDsn
+from pydantic import Field, PostgresDsn, RedisDsn, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
@@ -67,6 +67,22 @@ class Settings(BaseSettings):
     ai_timeout: int = Field(default=120)
     ai_max_retries: int = Field(default=3)
     ai_max_tokens: int = Field(default=8000)
+    ai_reasoning_effort: str | None = Field(default="none")
+
+    @field_validator("ai_reasoning_effort", mode="before")
+    @classmethod
+    def normalize_reasoning_effort(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        if isinstance(v, str):
+            v_clean = v.strip().lower()
+            if not v_clean:
+                return None
+            if v_clean in ("false", "off", "disabled", "0"):
+                return "none"
+            return v_clean
+        return v
+
     # arq max_jobs for the tagging worker, and deliberately the only AI
     # concurrency bound: excess jobs wait in Redis, where no clock runs. An
     # in-process gate (a semaphore in ai_service.py) must not be reintroduced,
@@ -97,6 +113,25 @@ class Settings(BaseSettings):
     storage_path: str = Field(default="/data/wardrobe")
     max_upload_size_mb: int = Field(default=10)
     max_bulk_upload_count: int = Field(default=20)
+    # Byte size is a poor proxy for decode cost: a 3.8MB JPEG can be 108MP,
+    # which needs ~324MB per full-resolution RGB buffer and several exist at
+    # once while variants are generated. JPEGs are drafted down before this
+    # ceiling is applied, so in practice it only rejects formats Pillow cannot
+    # scale during decode (PNG, WebP) and JPEGs still absurd after an 8x draft.
+    max_image_megapixels: float = Field(default=50.0, gt=0)
+
+    # Concurrency for the arq:images worker (rotation, background removal).
+    # Kept at 1 by default for the same reason as ai_tagging_concurrency: the
+    # smallest supported deployment is a Pi, and rembg inference holds a model
+    # plus its working buffers per concurrent job.
+    image_worker_concurrency: int = Field(default=1, ge=1)
+    image_job_timeout: int = Field(default=300, ge=1)
+
+    # How many items one bulk action touches per request. Uploads have always
+    # been capped; select_all was not, so a bulk action over a whole wardrobe
+    # ran unbounded work in a single request. A select_all larger than this is
+    # walked in batches via the response cursor rather than rejected.
+    max_bulk_action_count: int = Field(default=200, ge=1)
 
     # Background removal
     bg_removal_provider: str = Field(default="rembg")  # "rembg" or "http"

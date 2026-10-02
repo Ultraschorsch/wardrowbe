@@ -48,23 +48,47 @@
     "uploading": "Import en cours..."
   },
   "ai": {
-    "backgroundRemovalFailed": "Background removal failed",
     "analysisFailed": "Analyse échouée",
     "analyzing": "Analyse IA en cours...",
     "analyzingCount": "{count} en cours d'analyse",
     "analyzingElapsed": "Analyzing… {elapsed}",
     "analyzingProgress": "{count} en cours d'analyse · {percent} % terminé",
+    "backgroundRemovalFailed": "Background removal failed",
     "cancelAll": "Cancel all",
     "completeness": "Complétude IA : {percent} %",
     "confident": "{percent} % de confiance",
     "dismiss": "Fermer",
     "failedCount": "{count} échoué(s)",
+    "queue": {
+      "title": "AI analysis queue",
+      "description": "What the analyzer is working on right now, and how the current batch is going.",
+      "idle": "Nothing is waiting for analysis.",
+      "batchProgress": "{done} of {total} analyzed",
+      "percentDone": "{percent}% done",
+      "batchFailed": "{count, plural, one {# item failed} other {# items failed}}",
+      "nowAnalyzing": "Analyzing now",
+      "waitingToStart": "Waiting for the worker to pick up the next item.",
+      "averageLabel": "Average per item",
+      "remainingLabel": "Estimated time left",
+      "noEstimateYet": "Not enough data yet",
+      "recentlyFinished": "Recently finished",
+      "durationUnknown": "Duration unknown",
+      "failedHeading": "Failed",
+      "unknownError": "No reason was reported.",
+      "unnamedItem": "Untitled item",
+      "concurrency": "{count, plural, one {This instance analyzes # item at a time.} other {This instance analyzes # items at a time.}}",
+      "concurrencyLink": "Change this",
+      "open": "View queue"
+    },
     "queued": "Queued",
     "queuedCount": "{count} queued",
     "removeBackgroundQueued": "Queued for background removal",
     "removingBackground": "Removing background...",
     "removingBackgroundElapsed": "Removing background… {elapsed}",
-    "retryCooldown": "{seconds, plural, one {Retry available in # second} other {Retry available in # seconds}}"
+    "retryCooldown": "{seconds, plural, one {Retry available in # second} other {Retry available in # seconds}}",
+    "rotateFailed": "Rotation failed",
+    "rotateQueued": "Queued for rotation",
+    "rotating": "Rotating…"
   },
   "allTypes": "Tous les types",
   "bulkActions": {
@@ -88,8 +112,8 @@
     "removeBackgroundSkipped": "{count, plural, one {# item already processing} other {# items already processing}}",
     "rotateError": "Failed to rotate items",
     "rotatePartialFailed": "{count, plural, one {Failed to rotate # item} other {Failed to rotate # items}}",
-    "rotateSkipped": "{count, plural, one {# item skipped (already processing)} other {# items skipped (already processing)}}",
-    "rotateSuccess": "{count, plural, one {# item rotated} other {# items rotated}}"
+    "rotateQueued": "{count, plural, one {Queued # item for rotation} other {Queued # items for rotation}}",
+    "rotateSkipped": "{count, plural, one {# item skipped (already processing)} other {# items skipped (already processing)}}"
   },
   "bulkDelete": {
     "confirmDescription": "Cela supprimera définitivement les articles sélectionnés et leurs images. Cette action est irréversible.",
@@ -156,9 +180,11 @@
       "brandName": "Nom de la marque",
       "itemName": "Nom de l'article",
       "selectColor": "Sélectionner une couleur",
+      "subtype": "ex. leggings, chelsea",
       "washIntervalDefault": "Par défaut : {count}"
     },
     "primaryColor": "Couleur principale",
+    "subtype": "Sous-type",
     "titles": {
       "analysisInProgress": "Analyse en cours...",
       "deleteImage": "Supprimer l'image",
@@ -169,10 +195,12 @@
       "rotateLeft": "Rotation à gauche",
       "rotateRight": "Rotation à droite",
       "setAsPrimary": "Définir comme image principale",
+      "suggestOutfit": "Créer une tenue avec cet article",
       "toggleFavorite": "Basculer le favori",
       "undoBackgroundRemoval": "Annuler la suppression de l'arrière-plan"
     },
     "type": "Type",
+    "unrecognizedType": "L’IA a détecté « {value} », qui n’est pas un type pris en charge. Choisissez le type le plus proche ci-dessous ; vous pouvez garder « {value} » comme sous-type.",
     "view": {
       "addedDate": "Ajouté le {date}",
       "aiAnalysis": "Analyse IA",

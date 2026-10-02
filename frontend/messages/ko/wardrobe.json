@@ -48,23 +48,47 @@
     "uploading": "업로드 중..."
   },
   "ai": {
-    "backgroundRemovalFailed": "Background removal failed",
     "analysisFailed": "분석 실패",
     "analyzing": "AI 분석 중...",
     "analyzingCount": "{count}개 분석 중",
     "analyzingElapsed": "Analyzing… {elapsed}",
     "analyzingProgress": "{count}개 분석 중 · {percent}% 완료",
+    "backgroundRemovalFailed": "Background removal failed",
     "cancelAll": "Cancel all",
     "completeness": "AI 완성도: {percent}%",
     "confident": "{percent}% 확신",
     "dismiss": "닫기",
     "failedCount": "{count}개 실패",
+    "queue": {
+      "title": "AI analysis queue",
+      "description": "What the analyzer is working on right now, and how the current batch is going.",
+      "idle": "Nothing is waiting for analysis.",
+      "batchProgress": "{done} of {total} analyzed",
+      "percentDone": "{percent}% done",
+      "batchFailed": "{count, plural, one {# item failed} other {# items failed}}",
+      "nowAnalyzing": "Analyzing now",
+      "waitingToStart": "Waiting for the worker to pick up the next item.",
+      "averageLabel": "Average per item",
+      "remainingLabel": "Estimated time left",
+      "noEstimateYet": "Not enough data yet",
+      "recentlyFinished": "Recently finished",
+      "durationUnknown": "Duration unknown",
+      "failedHeading": "Failed",
+      "unknownError": "No reason was reported.",
+      "unnamedItem": "Untitled item",
+      "concurrency": "{count, plural, one {This instance analyzes # item at a time.} other {This instance analyzes # items at a time.}}",
+      "concurrencyLink": "Change this",
+      "open": "View queue"
+    },
     "queued": "Queued",
     "queuedCount": "{count} queued",
     "removeBackgroundQueued": "Queued for background removal",
     "removingBackground": "Removing background...",
     "removingBackgroundElapsed": "Removing background… {elapsed}",
-    "retryCooldown": "{seconds, plural, one {Retry available in # second} other {Retry available in # seconds}}"
+    "retryCooldown": "{seconds, plural, one {Retry available in # second} other {Retry available in # seconds}}",
+    "rotateFailed": "Rotation failed",
+    "rotateQueued": "Queued for rotation",
+    "rotating": "Rotating…"
   },
   "allTypes": "전체 유형",
   "bulkActions": {
@@ -88,8 +112,8 @@
     "removeBackgroundSkipped": "{count, plural, one {# item already processing} other {# items already processing}}",
     "rotateError": "Failed to rotate items",
     "rotatePartialFailed": "{count, plural, one {Failed to rotate # item} other {Failed to rotate # items}}",
-    "rotateSkipped": "{count, plural, one {# item skipped (already processing)} other {# items skipped (already processing)}}",
-    "rotateSuccess": "{count, plural, one {# item rotated} other {# items rotated}}"
+    "rotateQueued": "{count, plural, one {Queued # item for rotation} other {Queued # items for rotation}}",
+    "rotateSkipped": "{count, plural, one {# item skipped (already processing)} other {# items skipped (already processing)}}"
   },
   "bulkDelete": {
     "confirmDescription": "선택한 아이템과 이미지가 영구적으로 삭제돼요. 이 작업은 되돌릴 수 없어요.",
@@ -156,9 +180,11 @@
       "brandName": "브랜드명",
       "itemName": "아이템 이름",
       "selectColor": "색상 선택",
+      "subtype": "예: 레깅스, 첼시",
       "washIntervalDefault": "기본값: {count}"
     },
     "primaryColor": "메인 색상",
+    "subtype": "세부 유형",
     "titles": {
       "analysisInProgress": "분석 진행 중...",
       "deleteImage": "이미지 삭제",
@@ -169,10 +195,12 @@
       "rotateLeft": "왼쪽 회전",
       "rotateRight": "오른쪽 회전",
       "setAsPrimary": "대표 이미지로 설정",
+      "suggestOutfit": "이 아이템으로 코디 만들기",
       "toggleFavorite": "즐겨찾기 전환",
       "undoBackgroundRemoval": "배경 제거 취소"
     },
     "type": "유형",
+    "unrecognizedType": "AI가 “{value}”(으)로 인식했지만 지원되지 않는 유형입니다. 아래에서 가장 가까운 유형을 선택하세요. “{value}”는 세부 유형으로 남겨둘 수 있습니다.",
     "view": {
       "addedDate": "{date} 추가됨",
       "aiAnalysis": "AI 분석",

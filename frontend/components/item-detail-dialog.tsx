@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import {
   Heart,
   Pencil,
@@ -60,8 +61,8 @@ import { Progress } from '@/components/ui/progress';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
 import { useUpdateItem, useDeleteItem, useReanalyzeItem, useRotateImage, useRemoveBackground, useRestoreOriginal, useReplaceItemImage, useLogWash, useWashHistory, useItemWearStats, useItemWearHistory, useAddItemImage, useDeleteItemImage, useSetPrimaryImage } from '@/lib/hooks/use-items';
-import { Item, CLOTHING_PATTERNS, CLOTHING_MATERIALS, CLOTHING_FORMALITY, CLOTHING_FITS, CLOTHING_STYLES, CLOTHING_SEASONS } from '@/lib/types';
-import { useClothingTypes, useClothingColors } from '@/lib/hooks/use-translated-constants';
+import { CLOTHING_SUBTYPES, CLOTHING_PATTERNS, CLOTHING_MATERIALS, CLOTHING_FORMALITY, CLOTHING_FITS, CLOTHING_STYLES, CLOTHING_SEASONS, Item } from '@/lib/types';
+  import { useClothingTypes, useClothingColors, useSubtypeLabel } from '@/lib/hooks/use-translated-constants';
 import { ColorEyedropper } from '@/components/color-eyedropper';
 import { GeneratePairingsDialog } from '@/components/generate-pairings-dialog';
 import { useFeatures } from '@/lib/hooks/use-features';
@@ -75,17 +76,57 @@ interface ItemDetailDialogProps {
 
 // Images now use signed URLs from backend (item.image_url, item.thumbnail_url)
 
+interface EditForm {
+  name: string;
+  type: string;
+  subtype: string;
+  brand: string;
+  primary_color: string;
+    pattern: string;
+    material: string;
+    formality: string;
+    fit: string;
+    style: string[];
+    season: string[];
+  notes: string;
+  favorite: boolean;
+  wash_interval: number | undefined;
+}
+
+function editFormFromItem(item: Item): EditForm {
+  return {
+    name: item.name || '',
+    type: item.type,
+    // Pre-fill a rejected AI type as the subtype so picking the nearest
+    // supported type doesn't lose what the model actually saw.
+    subtype: item.subtype || (item.type === 'unknown' && item.ai_unrecognized_type) || '',
+    brand: item.brand || '',
+    primary_color: item.primary_color || '',
+        pattern: item.tags?.pattern || '',
+        material: item.tags?.material || '',
+        formality: item.tags?.formality || '',
+        fit: item.tags?.fit || '',
+        style: item.tags?.style || [],
+        season: item.tags?.season || [],
+    notes: item.notes || '',
+    favorite: item.favorite,
+    wash_interval: item.wash_interval ?? undefined,
+  };
+}
+
 export function ItemDetailDialog({ item, open, onOpenChange }: ItemDetailDialogProps) {
   const t = useTranslations('wardrobe.itemDetail');
   const tc = useTranslations('common');
   const tw = useTranslations('wardrobe');
+  const router = useRouter();
   const clothingTypes = useClothingTypes();
   const clothingColors = useClothingColors();
+  const subtypeLabel = useSubtypeLabel();
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showPairingsDialog, setShowPairingsDialog] = useState(false);
   const [imageKey, setImageKey] = useState(0);
-  const [editForm, setEditForm] = useState({
+  const [editForm, setEditForm] = useState<EditForm>({
     name: '',
     type: '',
     subtype: '',
@@ -99,7 +140,7 @@ export function ItemDetailDialog({ item, open, onOpenChange }: ItemDetailDialogP
     season: [] as string[],
     notes: '',
     favorite: false,
-    wash_interval: undefined as number | undefined,
+    wash_interval: undefined,
   });
   const [showWashHistory, setShowWashHistory] = useState(false);
   const [showWearHistory, setShowWearHistory] = useState(false);
@@ -125,20 +166,13 @@ export function ItemDetailDialog({ item, open, onOpenChange }: ItemDetailDialogP
   useEffect(() => {
     if (item) {
       setEditForm({
-        name: item.name || '',
-        type: item.type,
-        subtype: item.subtype || '',
-        brand: item.brand || '',
-        primary_color: item.primary_color || '',
-        pattern: item.tags?.pattern || '',
-        material: item.tags?.material || '',
-        formality: item.tags?.formality || '',
-        fit: item.tags?.fit || '',
-        style: item.tags?.style || [],
-        season: item.tags?.season || [],
-        notes: item.notes || '',
-        favorite: item.favorite,
-        wash_interval: item.wash_interval ?? undefined,
+                ...editFormFromItem(item),
+                pattern: item.tags?.pattern || '',
+                material: item.tags?.material || '',
+                formality: item.tags?.formality || '',
+                fit: item.tags?.fit || '',
+                style: item.tags?.style || [],
+                season: item.tags?.season || [],
       });
       setIsEditing(false);
       setActiveImageIndex(0);
@@ -154,7 +188,8 @@ export function ItemDetailDialog({ item, open, onOpenChange }: ItemDetailDialogP
         data: {
           name: editForm.name || undefined,
           type: editForm.type,
-          subtype: editForm.subtype || undefined,
+          // null (not undefined) so clearing the field actually clears it server-side.
+          subtype: editForm.subtype.trim() || null,
           brand: editForm.brand || undefined,
           primary_color: editForm.primary_color || undefined,
           notes: editForm.notes || undefined,
@@ -278,6 +313,8 @@ export function ItemDetailDialog({ item, open, onOpenChange }: ItemDetailDialogP
   const imageUrl = item.image_url || item.image_path;
   const colorInfo = clothingColors.find((c) => c.value === item.primary_color);
   const typeInfo = clothingTypes.find((type) => type.value === item.type);
+  const unrecognizedType = item.type === 'unknown' ? item.ai_unrecognized_type : null;
+  const subtypeSuggestions = CLOTHING_SUBTYPES[editForm.type] ?? [];
 
   // AI-generated tags
   const tags = item.tags || {};
@@ -290,142 +327,179 @@ export function ItemDetailDialog({ item, open, onOpenChange }: ItemDetailDialogP
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden [&>button]:hidden">
           {/* Header - sticky */}
-          <DialogHeader className="flex flex-row items-center justify-between space-y-0 p-4 border-b flex-shrink-0">
-            <DialogTitle className="text-xl min-w-0 truncate">
+          <DialogHeader className="flex flex-row items-center gap-2 space-y-0 p-4 border-b flex-shrink-0">
+            {/* Below sm the title keeps its 45% cap and the actions stay in a
+                scrollable row, so the close control is always reachable on a
+                phone. From sm up the title becomes the flexible item and the
+                actions row is sized to its content instead, so every action
+                stays visible and the name truncates. Previously the title had
+                no cap at all from sm up: because a flex item claims its content
+                width before a flex-1 sibling does, a long name squeezed the
+                actions row and pushed edit and replace-image out of view. */}
+            <DialogTitle className="text-xl min-w-0 truncate max-w-[45%] sm:max-w-none sm:flex-1">
               {item.name || (typeInfo ? typeInfo.label : item.type)}
             </DialogTitle>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleToggleFavorite}
-                disabled={updateItem.isPending}
-                title={t('titles.toggleFavorite')}
-              >
-                <Heart
-                  className={`h-5 w-5 ${
-                    item.favorite ? 'fill-red-500 text-red-500' : 'text-muted-foreground'
-                  }`}
-                />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowPairingsDialog(true)}
-                disabled={item.status !== 'ready'}
-                title={t('titles.findMatchingOutfits')}
-              >
-                <Layers className="h-5 w-5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleReanalyze}
-                disabled={isAnalyzing}
-                title={isAnalyzing ? t('titles.analysisInProgress') : t('titles.reanalyzeWithAI')}
-              >
-                <RefreshCw
-                  className={`h-5 w-5 ${isAnalyzing ? 'animate-spin text-primary' : ''}`}
-                />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => handleRotate('ccw')}
-                disabled={rotateImage.isPending}
-                title={t('titles.rotateLeft')}
-              >
-                {rotateImage.isPending ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <RotateCcw className="h-5 w-5" />
-                )}
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => handleRotate('cw')}
-                disabled={rotateImage.isPending}
-                title={t('titles.rotateRight')}
-              >
-                {rotateImage.isPending ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <RotateCw className="h-5 w-5" />
-                )}
-              </Button>
-              {features?.background_removal && (
+            {/* The action row scrolls sideways once it stops fitting, because
+                the dialog clips its own overflow: without this the buttons
+                push the close control past the right edge on a phone and it
+                cannot be reached at all. */}
+            <div className="flex-1 min-w-0 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-none">
+              <div className="flex w-max ml-auto items-center gap-1">
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={handleRemoveBackground}
-                  disabled={removeBackground.isPending || !item.image_url}
-                  title={t('titles.removeBackground')}
+                  onClick={handleToggleFavorite}
+                  disabled={updateItem.isPending}
+                  title={t('titles.toggleFavorite')}
                 >
-                  {removeBackground.isPending ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <Eraser className="h-5 w-5" />
-                  )}
+                  <Heart
+                    className={`h-5 w-5 ${
+                      item.favorite ? 'fill-red-500 text-red-500' : 'text-muted-foreground'
+                    }`}
+                  />
                 </Button>
-              )}
-              {item.original_image_path && (
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={handleRestoreOriginal}
-                  disabled={restoreOriginal.isPending}
-                  title={t('titles.undoBackgroundRemoval')}
+                  onClick={() => setShowPairingsDialog(true)}
+                  disabled={item.status !== 'ready'}
+                  title={t('titles.findMatchingOutfits')}
                 >
-                  {restoreOriginal.isPending ? (
+                  <Layers className="h-5 w-5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    onOpenChange(false);
+                    router.push(`/dashboard/suggest?item=${item.id}`);
+                  }}
+                  disabled={item.status !== 'ready'}
+                  title={t('titles.suggestOutfit')}
+                >
+                  <Sparkles className="h-5 w-5 text-primary" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleReanalyze}
+                  disabled={isAnalyzing}
+                  title={isAnalyzing ? t('titles.analysisInProgress') : t('titles.reanalyzeWithAI')}
+                >
+                  <RefreshCw
+                    className={`h-5 w-5 ${isAnalyzing ? 'animate-spin text-primary' : ''}`}
+                  />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleRotate('ccw')}
+                  disabled={rotateImage.isPending}
+                  title={t('titles.rotateLeft')}
+                >
+                  {rotateImage.isPending ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
                   ) : (
-                    <Undo2 className="h-5 w-5" />
+                    <RotateCcw className="h-5 w-5" />
                   )}
                 </Button>
-              )}
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => replaceImageInputRef.current?.click()}
-                disabled={replaceImage.isPending}
-                title={t('titles.replaceImage')}
-              >
-                {replaceImage.isPending ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <ImagePlus className="h-5 w-5" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleRotate('cw')}
+                  disabled={rotateImage.isPending}
+                  title={t('titles.rotateRight')}
+                >
+                  {rotateImage.isPending ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <RotateCw className="h-5 w-5" />
+                  )}
+                </Button>
+                {features?.background_removal && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleRemoveBackground}
+                    disabled={removeBackground.isPending || !item.image_url}
+                    title={t('titles.removeBackground')}
+                  >
+                    {removeBackground.isPending ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <Eraser className="h-5 w-5" />
+                    )}
+                  </Button>
                 )}
-              </Button>
-              <input
-                ref={replaceImageInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    handleReplaceImage(file);
-                  }
-                  e.target.value = '';
-                }}
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setIsEditing(!isEditing)}
-                title={isEditing ? t('actions.cancelEditing') : t('actions.editItem')}
-              >
-                {isEditing ? (
-                  <X className="h-5 w-5" />
-                ) : (
-                  <Pencil className="h-5 w-5" />
+                {item.original_image_path && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleRestoreOriginal}
+                    disabled={restoreOriginal.isPending}
+                    title={t('titles.undoBackgroundRemoval')}
+                  >
+                    {restoreOriginal.isPending ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <Undo2 className="h-5 w-5" />
+                    )}
+                  </Button>
                 )}
-              </Button>
-              <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="rounded-full" title={tc('close')}>
-                <X className="h-5 w-5" />
-              </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => replaceImageInputRef.current?.click()}
+                  disabled={replaceImage.isPending}
+                  title={t('titles.replaceImage')}
+                >
+                  {replaceImage.isPending ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <ImagePlus className="h-5 w-5" />
+                  )}
+                </Button>
+                <input
+                  ref={replaceImageInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      handleReplaceImage(file);
+                    }
+                    e.target.value = '';
+                  }}
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    // Re-read the item on entering edit mode: tagging can finish while the
+                    // dialog is open (same id, so the effect above doesn't re-run).
+                    if (!isEditing) setEditForm(editFormFromItem(item));
+                    setIsEditing(!isEditing);
+                  }}
+                  title={isEditing ? t('actions.cancelEditing') : t('actions.editItem')}
+                >
+                  {isEditing ? (
+                    <X className="h-5 w-5" />
+                  ) : (
+                    <Pencil className="h-5 w-5" />
+                  )}
+                </Button>
+              </div>
             </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onOpenChange(false)}
+              className="rounded-full flex-shrink-0"
+              title={tc('close')}
+            >
+              <X className="h-5 w-5" />
+            </Button>
           </DialogHeader>
 
           {/* Scrollable content */}
@@ -570,6 +644,11 @@ export function ItemDetailDialog({ item, open, onOpenChange }: ItemDetailDialogP
                   </div>
                   <div className="space-y-2">
                     <Label>{t('type')}</Label>
+                    {unrecognizedType && (
+                      <p className="text-xs text-amber-600 dark:text-amber-500">
+                        {t('unrecognizedType', { value: unrecognizedType })}
+                      </p>
+                    )}
                     <Select
                       value={editForm.type}
                       onValueChange={(v) => setEditForm({ ...editForm, type: v })}
@@ -585,6 +664,22 @@ export function ItemDetailDialog({ item, open, onOpenChange }: ItemDetailDialogP
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="item-subtype">{t('subtype')}</Label>
+                    <Input
+                      id="item-subtype"
+                      list="item-subtype-suggestions"
+                      maxLength={50}
+                      value={editForm.subtype}
+                      onChange={(e) => setEditForm({ ...editForm, subtype: e.target.value })}
+                      placeholder={t('placeholders.subtype')}
+                    />
+                    <datalist id="item-subtype-suggestions">
+                      {subtypeSuggestions.map((st) => (
+                        <option key={st} value={st}>{subtypeLabel(st)}</option>
+                      ))}
+                    </datalist>
                   </div>
                   <div className="space-y-2">
                     <Label>{t('brand')}</Label>
@@ -798,9 +893,14 @@ export function ItemDetailDialog({ item, open, onOpenChange }: ItemDetailDialogP
                       <Shirt className="h-4 w-4 text-muted-foreground" />
                       <span className="font-medium">{typeInfo ? typeInfo.label : item.type}</span>
                       {item.subtype && (
-                        <span className="text-muted-foreground">• {item.subtype}</span>
+                        <span className="text-muted-foreground">• {subtypeLabel(item.subtype)}</span>
                       )}
                     </div>
+                    {unrecognizedType && (
+                      <p className="text-xs text-amber-600 dark:text-amber-500">
+                        {t('unrecognizedType', { value: unrecognizedType })}
+                      </p>
+                    )}
                     {item.brand && (
                       <div className="flex items-center gap-2 text-sm">
                         <Tag className="h-4 w-4 text-muted-foreground" />

@@ -57,9 +57,11 @@ services:
       AI_TEXT_MODEL: ${AI_TEXT_MODEL:-gpt-4o}
       AI_TIMEOUT: ${AI_TIMEOUT:-120}
       AI_MAX_RETRIES: ${AI_MAX_RETRIES:-3}
+      AI_TAGGING_CONCURRENCY: ${AI_TAGGING_CONCURRENCY:-1}
       AI_INTERNAL_ENABLED: ${AI_INTERNAL_ENABLED:-true}
       AI_VISION_ENABLED: ${AI_VISION_ENABLED:-}
       AI_TEXT_ENABLED: ${AI_TEXT_ENABLED:-}
+      AI_REASONING_EFFORT: ${AI_REASONING_EFFORT:-none}
       NTFY_SERVER: ${NTFY_SERVER:-}
       NTFY_TOKEN: ${NTFY_TOKEN:-}
       MATTERMOST_WEBHOOK_URL: ${MATTERMOST_WEBHOOK_URL:-}
@@ -118,6 +120,35 @@ services:
       AI_INTERNAL_ENABLED: ${AI_INTERNAL_ENABLED:-true}
       AI_VISION_ENABLED: ${AI_VISION_ENABLED:-}
       AI_TEXT_ENABLED: ${AI_TEXT_ENABLED:-}
+      AI_REASONING_EFFORT: ${AI_REASONING_EFFORT:-none}
+      STORAGE_PATH: /data/wardrobe
+    volumes:
+      - wardrobe_data:/data/wardrobe
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+# Local image work (rotation, background removal) on its own queue, so a bulk
+# batch of it cannot block AI tagging behind it.
+  image-worker:
+    image: ghcr.io/anyesh/wardrowbe:backend-latest
+    container_name: wardrobe-image-worker
+    command: arq app.workers.image_worker.ImageWorkerSettings
+    environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-wardrobe}:${POSTGRES_PASSWORD:-wardrobe}@postgres:5432/${POSTGRES_DB:-wardrobe}
+      REDIS_URL: redis://redis:6379/0
+      IMAGE_WORKER_CONCURRENCY: ${IMAGE_WORKER_CONCURRENCY:-1}
+      BG_REMOVAL_PROVIDER: ${BG_REMOVAL_PROVIDER:-rembg}
+      BG_REMOVAL_MODEL: ${BG_REMOVAL_MODEL:-u2net}
+      BG_REMOVAL_URL: ${BG_REMOVAL_URL:-}
+      BG_REMOVAL_API_KEY: ${BG_REMOVAL_API_KEY:-}
+      MAX_IMAGE_MEGAPIXELS: ${MAX_IMAGE_MEGAPIXELS:-50}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
       STORAGE_PATH: /data/wardrobe
     volumes:
       - wardrobe_data:/data/wardrobe

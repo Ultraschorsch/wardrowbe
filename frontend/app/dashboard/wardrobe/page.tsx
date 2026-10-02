@@ -24,12 +24,13 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { AddItemDialog } from '@/components/add-item-dialog';
+import { AnalysisQueuePanel } from '@/components/analysis-queue-panel';
 import { ItemDetailDialog } from '@/components/item-detail-dialog';
 import { BulkActionToolbar, BulkSelection } from '@/components/bulk-action-toolbar';
-import { useItems, useItem, useItemTypes, useReanalyzeItem, useCancelAnalysis, useBulkDeleteItems, useBulkReanalyzeItems, useBulkCancelAnalysis, useBulkRotateItems, useBulkRemoveBackgroundItems, useRemoveBackground, useTaggingProgress, BulkOperationParams, tagProcessingLabel, formatAnalyzingElapsed } from '@/lib/hooks/use-items';
+import { useItems, useItem, useItemTypes, useReanalyzeItem, useCancelAnalysis, useBulkDeleteItems, useBulkReanalyzeItems, useBulkCancelAnalysis, useBulkRotateItems, useBulkRemoveBackgroundItems, useRemoveBackground, useTaggingProgress, BulkOperationParams, tagProcessingLabel, formatAnalyzingElapsed, deriveQueueSummary } from '@/lib/hooks/use-items';
 import { useUserProfile } from '@/lib/hooks/use-user';
 import { Item } from '@/lib/types';
-import { useClothingTypes, useClothingColors } from '@/lib/hooks/use-translated-constants';
+import { useClothingTypes, useClothingColors, useSubtypeLabel } from '@/lib/hooks/use-translated-constants';
 import { toast } from 'sonner';
 import { formatWornAgo, getWornAgoColorClass } from '@/lib/utils';
 import { useTranslations } from 'next-intl';
@@ -78,10 +79,15 @@ function ItemCard({
   const t = useTranslations('wardrobe');
   const tc = useTranslations('common');
   const clothingColors = useClothingColors();
+  const subtypeLabel = useSubtypeLabel();
   const colorInfo = clothingColors.find((c) => c.value === item.primary_color);
   const isProcessing = item.status === 'processing';
   const isError = item.status === 'error' && !errorDismissed;
   const isBackgroundRemovalKind = item.processing_kind === 'background_removal';
+  const isRotateKind = item.processing_kind === 'rotate';
+  // Neither rotation nor background removal touches AI tagging, so their
+  // failures must not be reported as an analysis failure or offer its retry.
+  const isImageOpKind = isBackgroundRemovalKind || isRotateKind;
 
   const handleCheckboxClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -146,6 +152,9 @@ function ItemCard({
                       })
                     : t('ai.removeBackgroundQueued');
                 }
+                if (label === 'rotating') {
+                  return item.ai_started_at ? t('ai.rotating') : t('ai.rotateQueued');
+                }
                 return label === 'analyzing' && item.ai_started_at
                   ? t('ai.analyzingElapsed', { elapsed: formatAnalyzingElapsed(item.ai_started_at) })
                   : t('ai.queued');
@@ -171,9 +180,13 @@ function ItemCard({
           <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-2 p-2">
             <AlertCircle className="h-6 w-6 text-red-400" />
             <span className="text-white text-xs font-medium text-center">
-              {isBackgroundRemovalKind ? t('ai.backgroundRemovalFailed') : t('ai.analysisFailed')}
+              {isBackgroundRemovalKind
+                ? t('ai.backgroundRemovalFailed')
+                : isRotateKind
+                  ? t('ai.rotateFailed')
+                  : t('ai.analysisFailed')}
             </span>
-            {!isBackgroundRemovalKind && item.ai_error && (
+            {!isImageOpKind && item.ai_error && (
               <span
                 className="text-white/70 text-[10px] text-center line-clamp-2 px-1"
                 title={item.ai_error}
@@ -182,35 +195,32 @@ function ItemCard({
               </span>
             )}
             <div className="flex gap-1.5">
-              {isBackgroundRemovalKind
-                ? onRetryBackgroundRemoval && (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="h-7 text-xs"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onRetryBackgroundRemoval(item.id);
-                      }}
-                    >
-                      <RefreshCw className="h-3 w-3 mr-1" />
-                      {tc('retry')}
-                    </Button>
-                  )
-                : onRetry && (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="h-7 text-xs"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onRetry(item.id);
-                      }}
-                    >
-                      <RefreshCw className="h-3 w-3 mr-1" />
-                      {tc('retry')}
-                    </Button>
-                  )}
+              {(() => {
+                // No retry for a failed rotation: the direction the user
+                // picked is not recorded anywhere, so a one-click retry would
+                // have to guess it and could turn the image the wrong way.
+                // They re-select and rotate again from the bulk toolbar.
+                const retry = isRotateKind
+                  ? undefined
+                  : isBackgroundRemovalKind
+                    ? onRetryBackgroundRemoval
+                    : onRetry;
+                if (!retry) return null;
+                return (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="h-7 text-xs"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      retry(item.id);
+                    }}
+                  >
+                    <RefreshCw className="h-3 w-3 mr-1" />
+                    {tc('retry')}
+                  </Button>
+                );
+              })()}
               {onDismissError && (
                 <Button
                   size="sm"
@@ -237,7 +247,7 @@ function ItemCard({
             </p>
             <p className="text-xs text-muted-foreground capitalize">
               {item.type}
-              {item.subtype && ` • ${item.subtype}`}
+              {item.subtype && ` • ${subtypeLabel(item.subtype)}`}
               {item.tags?.logprobs_confidence != null && ` · ${t('ai.confident', { percent: Math.round(item.tags.logprobs_confidence * 100) })}`}
             </p>
           </div>
@@ -317,6 +327,7 @@ export default function WardrobePage() {
   const tc = useTranslations('common');
   const clothingTypes = useClothingTypes();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [queuePanelOpen, setQueuePanelOpen] = useState(false);
   const [selection, setSelection] = useState<BulkSelection>({
     mode: 'none',
     selectedIds: new Set(),
@@ -434,16 +445,18 @@ export default function WardrobePage() {
   // badge at the page size, so a 100-image upload still read "20 analyzing".
   const queuedCount = taggingProgress?.queued ?? 0;
   const analyzingCount = taggingProgress?.analyzing ?? 0;
-  const errorCount = items.filter(
+  // Failures come from the server for the same reason the other two do, but
+  // dismissal is keyed on `${id}:${updated_at}` and only the current page
+  // carries those versions, so off-page failures stay counted until seen.
+  const dismissedOnPage = items.filter(
     (i) =>
       i.status === 'error' &&
       i.processing_kind !== 'background_removal' &&
-      !dismissedErrors.has(`${i.id}:${i.updated_at}`)
+      i.processing_kind !== 'rotate' &&
+      dismissedErrors.has(`${i.id}:${i.updated_at}`)
   ).length;
-  const taggedTotal = taggingProgress?.total ?? 0;
-  const taggedDone = taggingProgress?.completed ?? 0;
-  const percentComplete =
-    taggedTotal > 0 ? Math.round((taggedDone / taggedTotal) * 100) : 0;
+  const errorCount = Math.max(0, (taggingProgress?.failed ?? 0) - dismissedOnPage);
+  const queueSummary = deriveQueueSummary(taggingProgress);
 
   // Clear selection when filters change (but not page - allow cross-page selection)
   useEffect(() => {
@@ -463,6 +476,7 @@ export default function WardrobePage() {
   const handleRetryBackgroundRemoval = (itemId: string) => {
     removeBackground.mutate({ id: itemId });
   };
+
 
   const handleCancelAnalysis = (itemId: string) => {
     cancelAnalysis.mutate(itemId);
@@ -599,8 +613,8 @@ export default function WardrobePage() {
     const params = getBulkParams();
     try {
       const result = await bulkRotate.mutateAsync({ ...params, direction });
-      if (result.rotated > 0) {
-        toast.success(t('bulkActions.rotateSuccess', { count: result.rotated }));
+      if (result.queued > 0) {
+        toast.success(t('bulkActions.rotateQueued', { count: result.queued }));
       }
       if (result.skipped > 0) {
         toast.info(t('bulkActions.rotateSkipped', { count: result.skipped }));
@@ -658,8 +672,11 @@ export default function WardrobePage() {
               {analyzingCount > 0 && (
                 <Badge variant="secondary" className="gap-1 text-xs">
                   <Loader2 className="h-3 w-3 animate-spin" />
-                  {taggedTotal > 0
-                    ? t('ai.analyzingProgress', { count: analyzingCount, percent: percentComplete })
+                  {queueSummary.batchTotal > 0
+                    ? t('ai.analyzingProgress', {
+                        count: analyzingCount,
+                        percent: queueSummary.percentComplete,
+                      })
                     : t('ai.analyzingCount', { count: analyzingCount })}
                 </Badge>
               )}
@@ -668,6 +685,14 @@ export default function WardrobePage() {
                   {t('ai.queuedCount', { count: queuedCount })}
                 </Badge>
               )}
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 px-2 text-xs"
+                onClick={() => setQueuePanelOpen(true)}
+              >
+                {t('ai.queue.open')}
+              </Button>
               {(queuedCount > 0 || analyzingCount > 0) && (
                 <Button
                   size="sm"
@@ -923,6 +948,13 @@ export default function WardrobePage() {
       />
 
       <AddItemDialog open={addDialogOpen} onOpenChange={setAddDialogOpen} />
+      <AnalysisQueuePanel
+        open={queuePanelOpen}
+        onOpenChange={setQueuePanelOpen}
+        progress={taggingProgress}
+        onRetry={handleRetry}
+        retryPending={reanalyze.isPending}
+      />
       <ItemDetailDialog
         item={detailItem}
         open={!!detailItemId}

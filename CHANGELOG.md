@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.2](https://github.com/Anyesh/wardrowbe/compare/wardrowbe-v1.10.1...wardrowbe-v1.10.2) (2026-09-30)
+
+
+### 🐛 Bug Fixes
+
+* **analytics:** count dresses as bases when judging layers ([f0616b5](https://github.com/Anyesh/wardrowbe/commit/f0616b54d894a9facd0875890eebbd06d2a1655c))
+* **analytics:** derive tops/bottoms ratio from ITEM_ROLE ([754002f](https://github.com/Anyesh/wardrowbe/commit/754002f8384ee91365d27f283f3cef87e3340548)), closes [#209](https://github.com/Anyesh/wardrowbe/issues/209)
+* **analytics:** judge layers against base tops in composition insight ([9c85d6d](https://github.com/Anyesh/wardrowbe/commit/9c85d6d6602eed67403139379c1f3576800fcab6)), closes [#209](https://github.com/Anyesh/wardrowbe/issues/209)
+* **frontend:** refresh item edit form from latest item when entering edit mode ([9e53998](https://github.com/Anyesh/wardrowbe/commit/9e53998978c7a031e2164127fc92a3b7c51e4284))
+* **i18n:** correct trucker, combat and camp-collar subtype translations ([418db8d](https://github.com/Anyesh/wardrowbe/commit/418db8d05aba21979b23c47e49aa0c7c6c9a45e1))
+* surface rejected AI item types and make subtype editable ([#210](https://github.com/Anyesh/wardrowbe/issues/210)) ([27c4482](https://github.com/Anyesh/wardrowbe/commit/27c4482d052ce006afc0ad7accd460cbc9008cf8))
+
+
+### 🧪 Tests
+
+* keep CLOTHING_SUBTYPES in sync with the vision prompt ([e4dc1b3](https://github.com/Anyesh/wardrowbe/commit/e4dc1b3da4aad119413f329b2d32f3522e8bd89a))
+
+## [1.10.1](https://github.com/Anyesh/wardrowbe/compare/wardrowbe-v1.10.0...wardrowbe-v1.10.1) (2026-09-18)
+
+
+### 🐛 Bug Fixes
+
+* **ai:** classify 200 error envelopes by message before stripping params ([752dcdf](https://github.com/Anyesh/wardrowbe/commit/752dcdf159c4680df444f9cde51b840a69bd19e1))
+* **ai:** handle AI error envelopes returned with HTTP 200 ([e3e5a95](https://github.com/Anyesh/wardrowbe/commit/e3e5a950541aa31b4885c51bdb8f22565a69a808))
+* **ai:** handle error envelopes in text generation ([9da5d95](https://github.com/Anyesh/wardrowbe/commit/9da5d95a0eae27baf080c05ce2117288dcd30b5e))
+* handle AI error envelopes returned with HTTP 200 ([#201](https://github.com/Anyesh/wardrowbe/issues/201)) ([2804524](https://github.com/Anyesh/wardrowbe/commit/28045246da067fe185d728045adc46c74fd43e15))
+
+## [1.10.0](https://github.com/Anyesh/wardrowbe/compare/wardrowbe-v1.9.0...wardrowbe-v1.10.0) (2026-09-11)
+
+
+### ✨ Features
+
+* **suggest:** add base item selection and 3-look comparison view ([#194](https://github.com/Anyesh/wardrowbe/issues/194)) ([6062793](https://github.com/Anyesh/wardrowbe/commit/6062793f9f862432f125548a9aa6d04f29f89f58))
+
+
+### 🐛 Bug Fixes
+
+* **ai:** bypass reasoning mode by default to prevent timeouts on thinking models ([129ef25](https://github.com/Anyesh/wardrowbe/commit/129ef256c9715efcfa4e56c3770b4f2bbb82f047))
+* **ai:** bypass reasoning mode by default to prevent timeouts on thinking models ([ea8966e](https://github.com/Anyesh/wardrowbe/commit/ea8966e0caa86c2189e0667a0ede6355918cec5b))
+* **recommendation:** support all-season items and weather-aware season scoring ([fd56d47](https://github.com/Anyesh/wardrowbe/commit/fd56d4798686d8d09d5ead1191cc14aea5ffb87e))
+* **recommendation:** support all-season items and weather-aware season scoring ([bd08b13](https://github.com/Anyesh/wardrowbe/commit/bd08b13a657012af4d4ebdd5c1e98c4c58fab122))
+
 ## [1.9.0](https://github.com/Anyesh/wardrowbe/compare/wardrowbe-v1.8.2...wardrowbe-v1.9.0) (2026-09-03)
 
 
