@@ -44,6 +44,13 @@
     "addNewItem": "Ajouter un vêtement",
     "description": "Actions courantes pour bien démarrer",
     "getOutfitSuggestion": "Obtenir une suggestion de tenue",
+    "photoOutfit": {
+      "analyzing": "Analyse en cours…",
+      "button": "Enregistrer une tenue depuis une photo",
+      "failed": "Impossible de traiter cette photo. Veuillez réessayer.",
+      "found": "{count, plural, one {# article correspondant trouvé. Vérifiez et ajustez, puis marquez-le comme porté.} other {# articles correspondants trouvés. Vérifiez et ajustez, puis marquez-les comme portés.}}",
+      "noMatch": "Aucun article correspondant. Essayez une photo en pied plus nette."
+    },
     "title": "Actions rapides"
   },
   "subtitle": "Voici les dernières nouvelles de votre garde-robe",

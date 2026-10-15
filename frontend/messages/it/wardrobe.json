@@ -176,17 +176,27 @@
       "washed": "Capo segnato come lavato"
     },
     "brand": "Marca",
+    "fit": "Vestibilità",
+    "formality": "Formalità",
+    "material": "Materiale",
     "name": "Nome",
     "notes": "Note",
+    "pattern": "Fantasia",
     "placeholders": {
       "additionalNotes": "Note aggiuntive...",
       "brandName": "Nome marca",
       "itemName": "Nome capo",
       "selectColor": "Seleziona colore",
+      "selectFit": "Seleziona vestibilità",
+      "selectFormality": "Seleziona formalità",
+      "selectMaterial": "Seleziona materiale",
+      "selectPattern": "Seleziona fantasia",
       "subtype": "es. leggings, chelsea",
       "washIntervalDefault": "Predefinito: {count}"
     },
     "primaryColor": "Colore principale",
+    "season": "Stagione",
+    "style": "Stile",
     "subtype": "Sottotipo",
     "titles": {
       "analysisInProgress": "Analisi in corso...",

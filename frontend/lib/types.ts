@@ -1,4 +1,9 @@
-import { CLOTHING_TYPE_VALUES, OCCASION_VALUES } from '@/lib/generated/garment-vocabulary';
+import {
+  CLOTHING_TYPE_VALUES,
+  FORMALITY_VALUES,
+  MATERIAL_VALUES,
+  OCCASION_VALUES,
+} from '@/lib/generated/garment-vocabulary';
 
 // API response types matching backend schemas
 
@@ -207,77 +212,18 @@ export type FeaturedOccasion = (typeof FEATURED_OCCASION_VALUES)[number];
 
 export const FEATURED_OCCASIONS = FEATURED_OCCASION_VALUES.map((value) => ({ value }));
 
-export const CLOTHING_PATTERNS = [
-  { label: 'Solid', value: 'solid' },
-  { label: 'Striped', value: 'striped' },
-  { label: 'Plaid', value: 'plaid' },
-  { label: 'Checkered', value: 'checkered' },
-  { label: 'Floral', value: 'floral' },
-  { label: 'Graphic', value: 'graphic' },
-  { label: 'Geometric', value: 'geometric' },
-  { label: 'Polka Dot', value: 'polka-dot' },
-  { label: 'Camouflage', value: 'camouflage' },
-  { label: 'Animal Print', value: 'animal-print' },
-] as const;
+// Tag-editor options; labels come from the constants.* catalogs.
+export const CLOTHING_PATTERNS = ['solid', 'striped', 'plaid', 'checkered', 'floral', 'graphic', 'geometric', 'polka-dot', 'camouflage', 'animal-print'] as const;
 
-export const CLOTHING_MATERIALS = [
-  { label: 'Cotton', value: 'cotton' },
-  { label: 'Denim', value: 'denim' },
-  { label: 'Leather', value: 'leather' },
-  { label: 'Wool', value: 'wool' },
-  { label: 'Polyester', value: 'polyester' },
-  { label: 'Silk', value: 'silk' },
-  { label: 'Linen', value: 'linen' },
-  { label: 'Knit', value: 'knit' },
-  { label: 'Fleece', value: 'fleece' },
-  { label: 'Suede', value: 'suede' },
-  { label: 'Velvet', value: 'velvet' },
-  { label: 'Nylon', value: 'nylon' },
-  { label: 'Canvas', value: 'canvas' },
-  { label: 'Down', value: 'down' },
-  { label: 'Shearling', value: 'shearling' },
-] as const;
+export const CLOTHING_MATERIALS = MATERIAL_VALUES;
 
-export const CLOTHING_FORMALITY = [
-  { label: 'Very Casual', value: 'very-casual' },
-  { label: 'Casual', value: 'casual' },
-  { label: 'Smart Casual', value: 'smart-casual' },
-  { label: 'Business Casual', value: 'business-casual' },
-  { label: 'Formal', value: 'formal' },
-  { label: 'Very Formal', value: 'very-formal' },
-] as const;
+export const CLOTHING_FORMALITY = FORMALITY_VALUES;
 
-export const CLOTHING_FITS = [
-  { label: 'Slim', value: 'slim' },
-  { label: 'Regular', value: 'regular' },
-  { label: 'Relaxed', value: 'relaxed' },
-  { label: 'Oversized', value: 'oversized' },
-  { label: 'Tailored', value: 'tailored' },
-  { label: 'Cropped', value: 'cropped' },
-] as const;
+export const CLOTHING_FITS = ['slim', 'regular', 'relaxed', 'oversized', 'tailored', 'cropped'] as const;
 
-export const CLOTHING_STYLES = [
-  { label: 'Casual', value: 'casual' },
-  { label: 'Classic', value: 'classic' },
-  { label: 'Sporty', value: 'sporty' },
-  { label: 'Minimalist', value: 'minimalist' },
-  { label: 'Bohemian', value: 'bohemian' },
-  { label: 'Preppy', value: 'preppy' },
-  { label: 'Streetwear', value: 'streetwear' },
-  { label: 'Elegant', value: 'elegant' },
-  { label: 'Athletic', value: 'athletic' },
-  { label: 'Vintage', value: 'vintage' },
-  { label: 'Modern', value: 'modern' },
-  { label: 'Rugged', value: 'rugged' },
-] as const;
+export const CLOTHING_STYLES = ['casual', 'classic', 'sporty', 'minimalist', 'bohemian', 'preppy', 'streetwear', 'elegant', 'athletic', 'vintage', 'modern', 'rugged'] as const;
 
-export const CLOTHING_SEASONS = [
-  { label: 'Spring', value: 'spring' },
-  { label: 'Summer', value: 'summer' },
-  { label: 'Fall', value: 'fall' },
-  { label: 'Winter', value: 'winter' },
-  { label: 'All Season', value: 'all-season' },
-] as const;
+export const CLOTHING_SEASONS = ['spring', 'summer', 'fall', 'winter', 'all-season'] as const;
 
 // Family types
 export interface FamilyMember {

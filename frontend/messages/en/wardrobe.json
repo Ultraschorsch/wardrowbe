@@ -176,17 +176,27 @@
       "washed": "Item marked as washed"
     },
     "brand": "Brand",
+    "fit": "Fit",
+    "formality": "Formality",
+    "material": "Material",
     "name": "Name",
     "notes": "Notes",
+    "pattern": "Pattern",
     "placeholders": {
       "additionalNotes": "Additional notes...",
       "brandName": "Brand name",
       "itemName": "Item name",
       "selectColor": "Select color",
+      "selectFit": "Select fit",
+      "selectFormality": "Select formality",
+      "selectMaterial": "Select material",
+      "selectPattern": "Select pattern",
       "subtype": "e.g. leggings, chelsea",
       "washIntervalDefault": "Default: {count}"
     },
     "primaryColor": "Primary Color",
+    "season": "Season",
+    "style": "Style",
     "subtype": "Subtype",
     "titles": {
       "analysisInProgress": "Analysis in progress...",

@@ -759,122 +759,122 @@ export function ItemDetailDialog({ item, open, onOpenChange }: ItemDetailDialogP
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label>Pattern</Label>
+                    <Label>{t('pattern')}</Label>
                     <Select
                       value={editForm.pattern}
                       onValueChange={(v) => setEditForm({ ...editForm, pattern: v })}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select pattern" />
+                        <SelectValue placeholder={t('placeholders.selectPattern')} />
                       </SelectTrigger>
                       <SelectContent>
                         {CLOTHING_PATTERNS.map((p) => (
-                          <SelectItem key={p.value} value={p.value}>
-                            {p.label}
+                          <SelectItem key={p} value={p}>
+                            {patternLabel(p)}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Material</Label>
+                    <Label>{t('material')}</Label>
                     <Select
                       value={editForm.material}
                       onValueChange={(v) => setEditForm({ ...editForm, material: v })}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select material" />
+                        <SelectValue placeholder={t('placeholders.selectMaterial')} />
                       </SelectTrigger>
                       <SelectContent>
                         {CLOTHING_MATERIALS.map((m) => (
-                          <SelectItem key={m.value} value={m.value}>
-                            {m.label}
+                          <SelectItem key={m} value={m}>
+                            {materialLabel(m)}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Formality</Label>
+                    <Label>{t('formality')}</Label>
                     <Select
                       value={editForm.formality}
                       onValueChange={(v) => setEditForm({ ...editForm, formality: v })}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select formality" />
+                        <SelectValue placeholder={t('placeholders.selectFormality')} />
                       </SelectTrigger>
                       <SelectContent>
                         {CLOTHING_FORMALITY.map((f) => (
-                          <SelectItem key={f.value} value={f.value}>
-                            {f.label}
+                          <SelectItem key={f} value={f}>
+                            {formalityLabel(f)}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Fit</Label>
+                    <Label>{t('fit')}</Label>
                     <Select
                       value={editForm.fit}
                       onValueChange={(v) => setEditForm({ ...editForm, fit: v })}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select fit" />
+                        <SelectValue placeholder={t('placeholders.selectFit')} />
                       </SelectTrigger>
                       <SelectContent>
                         {CLOTHING_FITS.map((f) => (
-                          <SelectItem key={f.value} value={f.value}>
-                            {f.label}
+                          <SelectItem key={f} value={f}>
+                            {fitLabel(f)}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Style</Label>
+                    <Label>{t('style')}</Label>
                     <div className="flex flex-wrap gap-2">
                       {CLOTHING_STYLES.map((s) => {
-                        const selected = editForm.style.includes(s.value);
+                        const selected = editForm.style.includes(s);
                         return (
                           <Badge
-                            key={s.value}
+                            key={s}
                             variant={selected ? 'default' : 'outline'}
                             className="cursor-pointer"
                             onClick={() =>
                               setEditForm({
                                 ...editForm,
                                 style: selected
-                                  ? editForm.style.filter((v) => v !== s.value)
-                                  : [...editForm.style, s.value],
+                                  ? editForm.style.filter((v) => v !== s)
+                                  : [...editForm.style, s],
                               })
                             }
                           >
-                            {s.label}
+                            {styleLabel(s)}
                           </Badge>
                         );
                       })}
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label>Season</Label>
+                    <Label>{t('season')}</Label>
                     <div className="flex flex-wrap gap-2">
                       {CLOTHING_SEASONS.map((s) => {
-                        const selected = editForm.season.includes(s.value);
+                        const selected = editForm.season.includes(s);
                         return (
                           <Badge
-                            key={s.value}
+                            key={s}
                             variant={selected ? 'default' : 'outline'}
                             className="cursor-pointer"
                             onClick={() =>
                               setEditForm({
                                 ...editForm,
                                 season: selected
-                                  ? editForm.season.filter((v) => v !== s.value)
-                                  : [...editForm.season, s.value],
+                                  ? editForm.season.filter((v) => v !== s)
+                                  : [...editForm.season, s],
                               })
                             }
                           >
-                            {s.label}
+                            {seasonLabel(s)}
                           </Badge>
                         );
                       })}

@@ -44,6 +44,13 @@
     "addNewItem": "Neues Stück hinzufügen",
     "description": "Häufige Aktionen für den Einstieg",
     "getOutfitSuggestion": "Outfit-Vorschlag erhalten",
+    "photoOutfit": {
+      "analyzing": "Wird analysiert…",
+      "button": "Outfit per Foto erfassen",
+      "failed": "Dieses Foto konnte nicht verarbeitet werden. Bitte versuche es erneut.",
+      "found": "{count, plural, one {# passendes Teil gefunden. Prüfen, anpassen und dann als getragen markieren.} other {# passende Teile gefunden. Prüfen, anpassen und dann als getragen markieren.}}",
+      "noMatch": "Keine passenden Teile gefunden. Versuche ein deutlicheres Ganzkörperfoto."
+    },
     "title": "Schnellzugriff"
   },
   "subtitle": "Hier siehst du, was in deinem Kleiderschrank passiert",

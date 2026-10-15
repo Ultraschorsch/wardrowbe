@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Camera } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useCreateOutfitFromPhoto } from '@/lib/hooks/use-studio';
@@ -12,6 +13,7 @@ export function PhotoOutfitButton() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const router = useRouter();
+  const t = useTranslations('dashboard.quickActions.photoOutfit');
   const mutation = useCreateOutfitFromPhoto();
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -21,15 +23,13 @@ export function PhotoOutfitButton() {
     try {
       const result = await mutation.mutateAsync({ photo: file, occasion: 'casual' });
       if (result.matched_item_count > 0) {
-        toast.success(
-          `Found ${result.matched_item_count} matching item(s). Review and adjust, then mark as worn.`
-        );
+        toast.success(t('found', { count: result.matched_item_count }));
         router.push(`/dashboard/outfits/new?edit=${result.outfit.id}`);
       } else {
-        toast.error('No items matched. Try a clearer, full-body photo.');
+        toast.error(t('noMatch'));
       }
     } catch {
-      toast.error('Could not process this photo. Please try again.');
+      toast.error(t('failed'));
     } finally {
       setIsAnalyzing(false);
       if (inputRef.current) inputRef.current.value = '';
@@ -45,7 +45,7 @@ export function PhotoOutfitButton() {
         disabled={isAnalyzing}
       >
         <Camera className="mr-2 h-4 w-4" />
-        {isAnalyzing ? 'Analyzing…' : 'Log Outfit from Photo'}
+        {isAnalyzing ? t('analyzing') : t('button')}
       </Button>
       <input
         ref={inputRef}
