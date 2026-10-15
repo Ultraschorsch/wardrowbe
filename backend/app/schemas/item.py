@@ -1,37 +1,20 @@
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
-from app.utils.signed_urls import sign_image_url
-
-# Default wash intervals by clothing type (wears between washes)
-DEFAULT_WASH_INTERVALS: dict[str, int] = {
-    "t-shirt": 1,
-    "shirt": 2,
-    "blouse": 2,
-    "pants": 4,
-    "jeans": 6,
-    "shorts": 3,
-    "dress": 2,
-    "skirt": 3,
-    "sweater": 5,
-    "hoodie": 4,
-    "jacket": 8,
-    "coat": 10,
-    "blazer": 5,
-    "suit": 5,
-    "shoes": 15,
-    "accessories": 20,
-    "other": 3,
-}
+from app.models.item import ProcessingKind, TaggingStatus
+from app.schemas.color import ColorList, ColorName
+from app.schemas.outfit import Occasion
+from app.utils.garment_vocabulary import DEFAULT_WASH_INTERVALS
+from app.utils.signed_urls import sign_image_url, sign_optional
 
 
 class ItemTags(BaseModel):
-    colors: list[str] = Field(default_factory=list)
-    primary_color: str | None = None
+    colors: ColorList = Field(default_factory=list)
+    primary_color: ColorName | None = None
     pattern: str | None = None
     material: str | None = None
     style: list[str] = Field(default_factory=list)
@@ -41,6 +24,14 @@ class ItemTags(BaseModel):
     occasion: list[str] = Field(default_factory=list)
     condition: str | None = None
     features: list[str] = Field(default_factory=list)
+    # User-owned keys. The AI never emits these, so the tagging worker and
+    # ItemService.update must merge the tags JSONB rather than replace it.
+    size: str | None = Field(None, max_length=32)
+    care_instructions: str | None = Field(None, max_length=255)
+    source_url: str | None = Field(None, max_length=500)
+
+
+USER_TAG_KEYS = frozenset({"size", "care_instructions", "source_url"})
 
 
 class ItemBase(BaseModel):
@@ -56,8 +47,8 @@ class ItemBase(BaseModel):
 
 class ItemCreate(ItemBase):
     tags: ItemTags | None = None
-    colors: list[str] | None = None
-    primary_color: str | None = None
+    colors: ColorList | None = None
+    primary_color: ColorName | None = None
 
 
 class ItemUpdate(BaseModel):
@@ -70,8 +61,8 @@ class ItemUpdate(BaseModel):
     purchase_price: Decimal | None = Field(None, ge=0)
     favorite: bool | None = None
     tags: ItemTags | None = None
-    colors: list[str] | None = None
-    primary_color: str | None = None
+    colors: ColorList | None = None
+    primary_color: ColorName | None = None
     wash_interval: int | None = None
 
 
@@ -92,7 +83,7 @@ class ItemResponse(ItemBase):
         )
         if isinstance(raw, dict):
             # Same idea for a type the model named but the vocabulary rejected:
-            # lets the UI say "detected 'tights', not a supported type" rather
+            # lets the UI say "detected 'culottes', not a supported type" rather
             # than a bare "unknown".
             for src, dest in (("error", "ai_error"), ("unrecognized_type", "ai_unrecognized_type")):
                 if raw.get(src):
@@ -123,8 +114,8 @@ class ItemResponse(ItemBase):
     ai_error: str | None = None
     ai_unrecognized_type: str | None = None
     ai_started_at: datetime | None = None
-    processing_kind: str | None = None
-    tagging_status: str = "pending"
+    processing_kind: ProcessingKind | None = None
+    tagging_status: TaggingStatus = TaggingStatus.pending
     tagged_by: str | None = None
     tagged_at: datetime | None = None
     wear_count: int = 0
@@ -151,16 +142,12 @@ class ItemResponse(ItemBase):
     @computed_field
     @property
     def thumbnail_url(self) -> str | None:
-        if self.thumbnail_path:
-            return sign_image_url(self.thumbnail_path)
-        return None
+        return sign_optional(self.thumbnail_path)
 
     @computed_field
     @property
     def medium_url(self) -> str | None:
-        if self.medium_path:
-            return sign_image_url(self.medium_path)
-        return None
+        return sign_optional(self.medium_path)
 
     @computed_field
     @property
@@ -226,7 +213,7 @@ class ItemListResponse(BaseModel):
 class ItemFilter(BaseModel):
     type: str | None = None
     subtype: str | None = None
-    colors: list[str] | None = None
+    colors: ColorList | None = None
     status: str | None = None
     tagging_status: str | None = None
     favorite: bool | None = None
@@ -239,7 +226,7 @@ class ItemFilter(BaseModel):
 
 class LogWearRequest(BaseModel):
     worn_at: date | None = None  # If None, use user's timezone to determine today
-    occasion: str | None = None
+    occasion: Occasion | None = None
     notes: str | None = None
 
 
@@ -247,11 +234,17 @@ class ArchiveRequest(BaseModel):
     reason: str | None = Field(None, max_length=50)
 
 
+BulkUploadErrorCode = Literal[
+    "too_large", "unsupported_format", "duplicate", "invalid_image", "processing_failed"
+]
+
+
 class BulkUploadResult(BaseModel):
     filename: str
     success: bool
     item: ItemResponse | None = None
     error: str | None = None
+    error_code: BulkUploadErrorCode | None = None
     duplicate: bool = False
     existing_item_id: UUID | None = None
 
@@ -381,16 +374,12 @@ class ItemImageResponse(BaseModel):
     @computed_field
     @property
     def thumbnail_url(self) -> str | None:
-        if self.thumbnail_path:
-            return sign_image_url(self.thumbnail_path)
-        return None
+        return sign_optional(self.thumbnail_path)
 
     @computed_field
     @property
     def medium_url(self) -> str | None:
-        if self.medium_path:
-            return sign_image_url(self.medium_path)
-        return None
+        return sign_optional(self.medium_path)
 
 
 class ReorderImagesRequest(BaseModel):

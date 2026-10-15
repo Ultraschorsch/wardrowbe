@@ -170,20 +170,33 @@
       "originalRestoreError": "Failed to restore original image",
       "originalRestored": "Original image restored",
       "washError": "Failed to mark as washed",
+      "logWear": "Log wear",
+      "wearLogged": "Wear logged",
+      "wearLogError": "Failed to log wear",
       "washed": "Item marked as washed"
     },
     "brand": "Brand",
+    "fit": "Fit",
+    "formality": "Formality",
+    "material": "Material",
     "name": "Name",
     "notes": "Notes",
+    "pattern": "Pattern",
     "placeholders": {
       "additionalNotes": "Additional notes...",
       "brandName": "Brand name",
       "itemName": "Item name",
       "selectColor": "Select color",
+      "selectFit": "Select fit",
+      "selectFormality": "Select formality",
+      "selectMaterial": "Select material",
+      "selectPattern": "Select pattern",
       "subtype": "e.g. leggings, chelsea",
       "washIntervalDefault": "Default: {count}"
     },
     "primaryColor": "Primary Color",
+    "season": "Season",
+    "style": "Style",
     "subtype": "Subtype",
     "titles": {
       "analysisInProgress": "Analysis in progress...",
@@ -260,7 +273,14 @@
     "dismissAll": "Dismiss all",
     "retry": "Retry",
     "dismiss": "Dismiss",
-    "unprotectedWarning": "{count, plural, one {# file could not be protected against interruption (storage full)} other {# files could not be protected against interruption (storage full)}} - keep this tab open until upload completes"
+    "unprotectedWarning": "{count, plural, one {# file could not be protected against interruption (storage full)} other {# files could not be protected against interruption (storage full)}} - keep this tab open until upload completes",
+    "failure": {
+      "tooLarge": "{name} is larger than {limit} MB",
+      "tooLargeForServer": "{name} is too large for the server to accept",
+      "unsupportedFormat": "{name} is not a supported format (JPEG, PNG, WebP or HEIC)",
+      "duplicate": "{name} is already in your wardrobe",
+      "generic": "{name} could not be uploaded"
+    }
   },
   "wearCount": "{count, plural, one {Worn # time} other {Worn # times}}",
   "wornAgo": {

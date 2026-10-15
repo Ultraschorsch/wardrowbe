@@ -2,7 +2,7 @@ from datetime import UTC, date, datetime, timedelta
 from itertools import combinations
 from uuid import UUID
 
-from sqlalchemy import and_, func, select, update
+from sqlalchemy import and_, select
 from sqlalchemy import delete as sa_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -16,9 +16,10 @@ from app.models.outfit import (
     OutfitStatus,
 )
 from app.models.user import User
-from app.schemas.item import DEFAULT_WASH_INTERVALS
+from app.services.item_service import ItemService
 from app.services.learning_service import LearningService
 from app.utils.clothing import canonical_item_order
+from app.utils.timezone import get_user_today
 
 
 class ItemOwnershipError(Exception):
@@ -83,47 +84,6 @@ class StudioService:
         by_id = {item.id: item for item in items}
         return [by_id[iid] for iid in ordered_ids]
 
-    async def _apply_wear_tracking(
-        self, user_id: UUID, item_ids: list[UUID], worn_at: date
-    ) -> None:
-        for iid in item_ids:
-            existing = await self.db.get(ClothingItem, iid)
-            if existing is not None:
-                self.db.expire(existing)
-
-        result = await self.db.execute(
-            select(ClothingItem).where(
-                and_(
-                    ClothingItem.id.in_(item_ids),
-                    ClothingItem.user_id == user_id,
-                )
-            )
-        )
-        items = list(result.scalars().all())
-
-        for item in items:
-            effective_interval = (
-                item.wash_interval
-                if item.wash_interval is not None
-                else DEFAULT_WASH_INTERVALS.get(item.type, 3)
-            )
-            new_wears_since_wash = (item.wears_since_wash or 0) + 1
-
-            await self.db.execute(
-                update(ClothingItem)
-                .where(ClothingItem.id == item.id)
-                .values(
-                    wear_count=(item.wear_count or 0) + 1,
-                    last_worn_at=func.greatest(
-                        func.coalesce(ClothingItem.last_worn_at, worn_at),
-                        worn_at,
-                    ),
-                    wears_since_wash=new_wears_since_wash,
-                    needs_wash=new_wears_since_wash >= effective_interval,
-                )
-            )
-            self.db.expire(item)
-
     async def _reload_outfit(self, outfit_id: UUID) -> Outfit:
         result = await self.db.execute(
             select(Outfit)
@@ -165,7 +125,10 @@ class StudioService:
                     Outfit.created_at >= recent_cutoff,
                 )
             )
-            .options(selectinload(Outfit.items).selectinload(OutfitItem.item), selectinload(Outfit.feedback))
+            .options(
+                selectinload(Outfit.items).selectinload(OutfitItem.item),
+                selectinload(Outfit.feedback),
+            )
             .order_by(Outfit.created_at.desc())
         )
         candidates = recent_result.scalars().all()
@@ -175,6 +138,9 @@ class StudioService:
             if candidate_id_set == requested_id_set:
                 return candidate
 
+        # Marking an undated outfit worn means it was worn today, as wear_today assumes.
+        if mark_worn and scheduled_for is None:
+            scheduled_for = get_user_today(user)
         effective_worn = scheduled_for if mark_worn else None
 
         outfit = Outfit(
@@ -202,7 +168,13 @@ class StudioService:
         self.db.add(feedback)
 
         if mark_worn and effective_worn is not None:
-            await self._apply_wear_tracking(user.id, [i.id for i in ordered], effective_worn)
+            await ItemService(self.db).record_wears(
+                user.id,
+                [i.id for i in ordered],
+                effective_worn,
+                occasion=occasion,
+                outfit_id=outfit.id,
+            )
 
         await self.db.flush()
         return await self._reload_outfit(outfit.id)
@@ -243,7 +215,6 @@ class StudioService:
 
         effective_date = scheduled_for or original.scheduled_for
 
-        occasion_label = (original.occasion or "Outfit").title()
         replacement = Outfit(
             user_id=user.id,
             occasion=original.occasion,
@@ -251,7 +222,6 @@ class StudioService:
             source=OutfitSource.manual,
             status=OutfitStatus.pending,
             replaces_outfit_id=original.id,
-            name=f"{occasion_label} (wore instead)",
         )
         self.db.add(replacement)
         await self.db.flush()
@@ -272,7 +242,13 @@ class StudioService:
         original.responded_at = datetime.utcnow()
 
         if effective_date is not None:
-            await self._apply_wear_tracking(user.id, [i.id for i in ordered], effective_date)
+            await ItemService(self.db).record_wears(
+                user.id,
+                [i.id for i in ordered],
+                effective_date,
+                occasion=replacement.occasion,
+                outfit_id=replacement.id,
+            )
 
         await self.db.flush()
         return await self._reload_outfit(replacement.id)
@@ -356,7 +332,7 @@ class StudioService:
         if template.scheduled_for is not None:
             raise OutfitNotTemplateError("wear_today requires a lookbook template")
 
-        target_date = scheduled_for or date.today()
+        target_date = scheduled_for if scheduled_for is not None else get_user_today(user)
 
         wear = Outfit(
             user_id=user.id,
@@ -386,7 +362,13 @@ class StudioService:
         )
         self.db.add(feedback)
 
-        await self._apply_wear_tracking(user.id, [oi.item_id for oi in template.items], target_date)
+        await ItemService(self.db).record_wears(
+            user.id,
+            [oi.item_id for oi in template.items],
+            target_date,
+            occasion=wear.occasion,
+            outfit_id=wear.id,
+        )
 
         await self.db.flush()
         return await self._reload_outfit(wear.id)
@@ -438,9 +420,7 @@ class StudioService:
 
             refreshed = await self._reload_outfit(outfit.id)
             if added or removed:
-                await self.learning.process_item_diff(
-                    refreshed, added_pairs=added, removed_pairs=removed
-                )
+                await self.learning.process_item_diff(refreshed, removed_pairs=removed)
             outfit = refreshed
 
         await self.db.flush()

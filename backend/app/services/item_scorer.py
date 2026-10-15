@@ -8,19 +8,13 @@ from app.models.preference import UserPreference
 from app.services.weather_service import WeatherData
 from app.utils.clothing import ITEM_ROLE
 from app.utils.color_seasons import get_palette
-
-OCCASION_FORMALITY = {
-    "casual": ["very-casual", "casual", "smart-casual"],
-    "work": ["smart-casual", "business-casual", "formal"],
-    "office": ["smart-casual", "business-casual", "formal"],
-    "formal": ["business-casual", "formal", "very-formal"],
-    "sporty": ["very-casual", "casual"],
-    "outdoor": ["very-casual", "casual"],
-    "date": ["smart-casual", "business-casual", "formal"],
-    "party": ["smart-casual", "business-casual", "formal"],
-    "lecture": ["smart-casual", "business-casual"],
-    "presentation": ["business-casual", "formal"],
-}
+from app.utils.garment_vocabulary import FORMALITY, OCCASION_FORMALITY
+from app.utils.preference_defaults import DEFAULT_PREFER_UNDERUSED_ITEMS
+from app.utils.scales import (
+    DEFAULT_AVOID_REPEAT_DAYS,
+    DEFAULT_COLD_THRESHOLD,
+    DEFAULT_HOT_THRESHOLD,
+)
 
 _NORTH_SEASON = {
     1: "winter",
@@ -59,14 +53,7 @@ def get_season(month: int, latitude: float | None = None) -> str:
     return _NORTH_SEASON[month]
 
 
-FORMALITY_ORDER = [
-    "very-casual",
-    "casual",
-    "smart-casual",
-    "business-casual",
-    "formal",
-    "very-formal",
-]
+FORMALITY_ORDER = list(FORMALITY)
 
 SEASON_ADJACENCY = {
     "spring": ["summer", "winter"],
@@ -78,8 +65,6 @@ SEASON_ADJACENCY = {
 TOP_N = 70
 MIN_ITEMS_FOR_SCORING = 50
 
-DEFAULT_COLD_THRESHOLD = 10
-DEFAULT_HOT_THRESHOLD = 25
 SENSITIVITY_SHIFT = 5
 
 # An outfit is unwearable without these, so the prompt must keep candidates for them even
@@ -90,8 +75,9 @@ MIN_CANDIDATES_PER_ESSENTIAL_ROLE = 4
 TEMP_RANGE_MIN_SWING = 8.0
 REMOVABLE_LAYER_HOT_FLOOR = 0.6
 
-REMOVABLE_LAYER_TYPES = {"jacket", "coat", "blazer", "hoodie", "cardigan", "vest", "outerwear"}
-RAIN_LAYER_TYPES = {"jacket", "coat", "hoodie", "outerwear"}
+REMOVABLE_LAYER_TYPES = {"jacket", "coat", "blazer", "hoodie", "cardigan", "vest"}
+RAIN_LAYER_TYPES = {"jacket", "coat", "hoodie"}
+RAIN_LIKELY_CHANCE = 50
 WARM_LAYER_TYPES = REMOVABLE_LAYER_TYPES | {"sweater"}
 HEAVY_LAYER_TYPES = {"coat"}
 HEAVY_LAYER_MATERIALS = {"wool", "fleece", "down", "shearling"}
@@ -120,16 +106,32 @@ class ScoredItem:
     pair_bonus: float = 0.0
 
 
+def _temp_band(temp: float, cold_threshold: float, hot_threshold: float) -> str:
+    if temp < cold_threshold:
+        return "cold"
+    if temp > hot_threshold:
+        return "hot"
+    return "mild"
+
+
 def _temp_bucket_score(
     item_type: str,
+    subtype: str,
     material: str,
     seasons: list[str],
     temp: float,
     cold_threshold: float,
     hot_threshold: float,
 ) -> float:
-    if temp < cold_threshold:
-        if item_type in WARM_LAYER_TYPES or material in ("wool", "fleece", "knit"):
+    # Sheer and thermal tights serve different weather needs, so the type alone
+    # must not mark every pair as a warm layer. The materials match the cold-weather
+    # rule below so the heat penalty hits the same pairs the cold reward favours.
+    warm_tights = item_type == "tights" and (
+        subtype == "thermal" or material in ("wool", "fleece", "knit")
+    )
+    band = _temp_band(temp, cold_threshold, hot_threshold)
+    if band == "cold":
+        if warm_tights or item_type in WARM_LAYER_TYPES or material in ("wool", "fleece", "knit"):
             return 1.0
         elif "winter" in seasons:
             return 1.0
@@ -137,7 +139,9 @@ def _temp_bucket_score(
             return 0.05
         else:
             return 0.7
-    elif temp > hot_threshold:
+    elif band == "hot":
+        if warm_tights:
+            return 0.05
         if material in ("cotton", "linen", "silk") or "summer" in seasons:
             return 1.0
         elif item_type in WARM_LAYER_TYPES or item_type == "boots":
@@ -183,6 +187,22 @@ def _resolve_temp_thresholds(preferences: UserPreference | None) -> tuple[float,
     return cold_threshold, hot_threshold
 
 
+def stays_above_hot_threshold(weather: WeatherData, preferences: UserPreference | None) -> bool:
+    # The raw window, not scoring_temp_range: that hides swings under 8C, which would
+    # let a hot midday reading stand in for a cool evening.
+    _, hot_threshold = _resolve_temp_thresholds(preferences)
+    coolest = weather.window_min if weather.window_min is not None else weather.temperature
+    return coolest > hot_threshold
+
+
+def temperature_band(temp: float, preferences: UserPreference | None) -> str:
+    return _temp_band(temp, *_resolve_temp_thresholds(preferences))
+
+
+def rain_likely(weather: WeatherData) -> bool:
+    return weather.precipitation_chance > RAIN_LIKELY_CHANCE
+
+
 def _weather_score(
     item: ClothingItem,
     weather: WeatherData,
@@ -199,20 +219,26 @@ def _weather_score(
 
     if temp_range is not None:
         low = _temp_bucket_score(
-            item_type, material, seasons, temp_range[0], cold_threshold, hot_threshold
+            item_type, subtype, material, seasons, temp_range[0], cold_threshold, hot_threshold
         )
         high = _temp_bucket_score(
-            item_type, material, seasons, temp_range[1], cold_threshold, hot_threshold
+            item_type, subtype, material, seasons, temp_range[1], cold_threshold, hot_threshold
         )
         if item_type in REMOVABLE_LAYER_TYPES and not _is_heavy_layer(item_type, material, subtype):
             high = max(high, REMOVABLE_LAYER_HOT_FLOOR)
         score = (low + high) / 2
     else:
         score = _temp_bucket_score(
-            item_type, material, seasons, weather.temperature, cold_threshold, hot_threshold
+            item_type,
+            subtype,
+            material,
+            seasons,
+            weather.temperature,
+            cold_threshold,
+            hot_threshold,
         )
 
-    if weather.precipitation_chance > 50 and item_type in RAIN_LAYER_TYPES:
+    if rain_likely(weather) and item_type in RAIN_LAYER_TYPES:
         score = min(1.0, score + 0.1)
 
     return score
@@ -220,7 +246,7 @@ def _weather_score(
 
 def _formality_score(item: ClothingItem, occasion: str) -> float:
     item_formality = (item.formality or "casual").lower()
-    allowed = OCCASION_FORMALITY.get(occasion.lower(), ["casual", "smart-casual"])
+    allowed = OCCASION_FORMALITY.get(occasion.lower(), ("casual", "smart-casual"))
 
     if item_formality in allowed:
         return 1.0
@@ -424,7 +450,7 @@ def score_items(
         scored = [ScoredItem(item=item) for item in items]
         return _sort_mandatory_first(scored, mandatory_item_ids)
 
-    avoid_days = 7
+    avoid_days = DEFAULT_AVOID_REPEAT_DAYS
     if preferences and preferences.avoid_repeat_days is not None:
         avoid_days = preferences.avoid_repeat_days
 
@@ -434,7 +460,9 @@ def score_items(
         elif preferences.variety_level == "low":
             avoid_days = max(1, int(avoid_days * 0.5))
 
-    use_underused = preferences.prefer_underused_items if preferences else True
+    use_underused = (
+        preferences.prefer_underused_items if preferences else DEFAULT_PREFER_UNDERUSED_ITEMS
+    )
     median_wear = median([i.wear_count or 0 for i in items]) if use_underused and items else 0
 
     scored = []

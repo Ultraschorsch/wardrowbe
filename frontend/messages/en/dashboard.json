@@ -44,6 +44,13 @@
     "addNewItem": "Add New Item",
     "description": "Common tasks to get you started",
     "getOutfitSuggestion": "Get Outfit Suggestion",
+    "photoOutfit": {
+      "analyzing": "Analyzing…",
+      "button": "Log Outfit from Photo",
+      "failed": "Could not process this photo. Please try again.",
+      "found": "{count, plural, one {Found # matching item. Review and adjust, then mark as worn.} other {Found # matching items. Review and adjust, then mark as worn.}}",
+      "noMatch": "No items matched. Try a clearer, full-body photo."
+    },
     "title": "Quick Actions"
   },
   "subtitle": "Here's what's happening with your wardrobe",

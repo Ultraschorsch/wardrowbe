@@ -44,6 +44,13 @@
     "addNewItem": "新しいアイテムを追加",
     "description": "よく使う機能",
     "getOutfitSuggestion": "コーディネート提案を取得",
+    "photoOutfit": {
+      "analyzing": "分析中…",
+      "button": "写真からコーデを記録",
+      "failed": "この写真を処理できませんでした。もう一度お試しください。",
+      "found": "{count, plural, other {一致するアイテムが#件見つかりました。確認・調整してから着用済みにしてください。}}",
+      "noMatch": "一致するアイテムがありません。より鮮明な全身写真をお試しください。"
+    },
     "title": "クイックアクション"
   },
   "subtitle": "ワードローブの最新情報",

@@ -16,6 +16,7 @@ from app.services.item_scorer import (
     get_season,
     score_items,
     scoring_temp_range,
+    stays_above_hot_threshold,
 )
 from app.services.weather_service import WeatherData
 
@@ -86,8 +87,8 @@ def _prefs(**kwargs) -> UserPreference:
 
 
 class TestWeatherScore:
-    def test_cold_outerwear_scores_high(self):
-        item = _item(type="outerwear")
+    def test_cold_coat_scores_high(self):
+        item = _item(type="coat")
         assert _weather_score(item, _weather(temp=5), None) == 1.0
 
     def test_cold_shorts_scores_low(self):
@@ -109,8 +110,8 @@ class TestWeatherScore:
         # temp=12 < 15 → cold weather, shorts get 0.05
         assert _weather_score(item, _weather(temp=12), prefs) == 0.05
 
-    def test_rain_boosts_outerwear(self):
-        item = _item(type="outerwear")
+    def test_rain_boosts_jacket(self):
+        item = _item(type="jacket")
         assert _weather_score(item, _weather(temp=18, precipitation=60), None) == 1.0
 
     def test_cold_wool_scores_high(self):
@@ -124,6 +125,23 @@ class TestWeatherScore:
     def test_cold_regular_shirt(self):
         item = _item(type="shirt")
         assert _weather_score(item, _weather(temp=5), None) == 0.7
+
+    @pytest.mark.parametrize(
+        ("subtype", "material", "cold", "hot"),
+        [
+            ("Thermal", None, 1.0, 0.05),
+            ("opaque", "wool", 1.0, 0.05),
+            (None, "fleece", 1.0, 0.05),
+            ("sheer", None, 0.7, 0.8),
+            ("opaque", "polyester", 0.7, 0.8),
+            ("opaque", "knit", 1.0, 0.05),
+        ],
+        ids=["thermal", "wool-opaque", "fleece-untyped", "sheer", "synthetic-opaque", "knit"],
+    )
+    def test_only_warm_tights_count_as_a_warm_layer(self, subtype, material, cold, hot):
+        item = _item(type="tights", subtype=subtype, material=material)
+        assert _weather_score(item, _weather(temp=5), None) == cold
+        assert _weather_score(item, _weather(temp=30), None) == hot
 
 
 class TestWeatherScoreRange:
@@ -267,10 +285,6 @@ class TestWeatherScoreRealItemTypes:
         assert _weather_score(item, _weather(temp=30, precipitation=60), None) == pytest.approx(
             0.05
         )
-
-    def test_legacy_outerwear_type_still_honored(self):
-        item = _item(type="outerwear")
-        assert _weather_score(item, _weather(temp=5), None) == 1.0
 
 
 class TestFormalityScore:
@@ -428,7 +442,7 @@ class TestScoreItems:
     def test_sorts_descending(self):
         items = [
             _item(type="shorts"),
-            _item(type="outerwear"),
+            _item(type="coat"),
         ]
         filler = [_item() for _ in range(MIN_ITEMS_FOR_SCORING - 2)]
         all_items = items + filler
@@ -445,9 +459,9 @@ class TestScoreItems:
             recently_worn_dates={},
         )
 
-        outerwear_pos = next(i for i, s in enumerate(result) if s.item.type == "outerwear")
+        coat_pos = next(i for i, s in enumerate(result) if s.item.type == "coat")
         shorts_pos = next(i for i, s in enumerate(result) if s.item.type == "shorts")
-        assert outerwear_pos < shorts_pos
+        assert coat_pos < shorts_pos
 
     def test_returns_top_n(self):
         items = [_item() for _ in range(100)]
@@ -636,3 +650,30 @@ class TestRoleDiversity:
         result_ids = {s.item.id for s in result}
         assert mandatory.id in result_ids
         assert {s.id for s in shoes} <= result_ids
+
+
+@pytest.mark.parametrize(
+    ("weather", "prefs", "expected"),
+    [
+        (_weather(temp=28), _prefs(), True),
+        (_weather(temp=24), _prefs(), False),
+        (_weather(temp=28, window_min=15, window_max=29), _prefs(), False),
+        (_weather(temp=28, window_min=26, window_max=35), _prefs(), True),
+        (_weather(temp=30, window_min=23, window_max=30), _prefs(), False),
+        (_weather(temp=22), _prefs(temperature_sensitivity="high"), True),
+        (_weather(temp=28), _prefs(temperature_sensitivity="low"), False),
+        (_weather(temp=45), None, True),
+    ],
+    ids=[
+        "hot",
+        "mild",
+        "cool-morning",
+        "hot-all-window",
+        "narrow-swing-cool-evening",
+        "runs-hot",
+        "runs-cold",
+        "no-preferences",
+    ],
+)
+def test_stays_above_hot_threshold_needs_the_coolest_part_to_be_hot(weather, prefs, expected):
+    assert stays_above_hot_threshold(weather, prefs) is expected

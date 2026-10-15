@@ -6,7 +6,9 @@ from app.utils.clothing import (
     canonical_item_order,
     count_composition,
     deduplicate_by_body_slot,
+    remove_legwear,
 )
+from app.utils.garment_vocabulary import ROLES
 
 
 def _ids(n):
@@ -122,6 +124,25 @@ def test_socks_get_own_slot():
     assert len(result) == 3
 
 
+def test_tights_coexist_with_skirt_and_socks_but_only_one_legwear_item():
+    skirt, tights, other_tights, socks, shoes = _ids(5)
+    item_type_map = {
+        skirt: "skirt",
+        tights: "tights",
+        other_tights: "tights",
+        socks: "socks",
+        shoes: "shoes",
+    }
+    result = deduplicate_by_body_slot([skirt, tights, other_tights, socks, shoes], item_type_map)
+    assert result == [skirt, tights, socks, shoes]
+
+
+def test_tights_coexist_with_dress():
+    dress, tights, shoes = _ids(3)
+    item_type_map = {dress: "dress", tights: "tights", shoes: "shoes"}
+    assert deduplicate_by_body_slot([dress, tights, shoes], item_type_map) == [dress, tights, shoes]
+
+
 def test_multiple_accessories_allowed():
     hat_id, scarf_id, belt_id, shirt_id = _ids(4)
     item_type_map = {
@@ -134,36 +155,82 @@ def test_multiple_accessories_allowed():
     assert len(result) == 4
 
 
-def test_item_role_covers_all_clothing_analysis_types():
-    expected_types = {
-        "shirt",
-        "t-shirt",
-        "top",
-        "pants",
-        "jeans",
-        "shorts",
-        "dress",
-        "jumpsuit",
-        "skirt",
-        "jacket",
-        "coat",
-        "sweater",
-        "hoodie",
-        "blazer",
-        "vest",
-        "cardigan",
-        "polo",
-        "blouse",
-        "tank-top",
-        "shoes",
-        "sneakers",
-        "boots",
-        "sandals",
-        "socks",
-        "tie",
+def test_suit_replaces_trousers_but_keeps_shirt_and_overcoat():
+    suit, other_suit, shirt, pants, coat, tie, shoes = _ids(7)
+    item_type_map = {
+        suit: "suit",
+        other_suit: "suit",
+        shirt: "shirt",
+        pants: "pants",
+        coat: "coat",
+        tie: "tie",
+        shoes: "shoes",
     }
-    for t in expected_types:
-        assert t in ITEM_ROLE, f"Missing type '{t}' in ITEM_ROLE"
+    result = deduplicate_by_body_slot(
+        [shirt, pants, suit, other_suit, coat, tie, shoes], item_type_map
+    )
+    assert result == [shirt, suit, coat, tie, shoes]
+
+
+def test_suit_allows_a_mid_layer_under_it():
+    suit, shirt, vest = _ids(3)
+    item_type_map = {suit: "suit", shirt: "shirt", vest: "vest"}
+    assert deduplicate_by_body_slot([shirt, vest, suit], item_type_map) == [shirt, vest, suit]
+
+
+def test_first_multi_slot_item_wins_when_they_overlap():
+    dress, suit = _ids(2)
+    item_type_map = {dress: "dress", suit: "suit"}
+    assert deduplicate_by_body_slot([dress, suit], item_type_map) == [dress]
+    assert deduplicate_by_body_slot([suit, dress], item_type_map) == [suit]
+
+
+def test_two_dresses_keep_only_the_first():
+    first, second = _ids(2)
+    item_type_map = {first: "dress", second: "jumpsuit"}
+    assert deduplicate_by_body_slot([first, second], item_type_map) == [first]
+
+
+def test_mandatory_suit_beats_later_trousers_and_keeps_shirt():
+    suit, shirt, pants = _ids(3)
+    item_type_map = {suit: "suit", shirt: "shirt", pants: "pants"}
+    result = deduplicate_by_body_slot(
+        [pants, shirt, suit], item_type_map, mandatory_item_ids={suit}
+    )
+    assert result == [shirt, suit]
+
+
+def test_mandatory_trousers_beat_a_suit():
+    suit, pants = _ids(2)
+    item_type_map = {suit: "suit", pants: "pants"}
+    result = deduplicate_by_body_slot([suit, pants], item_type_map, mandatory_item_ids={pants})
+    assert result == [pants]
+
+
+def test_canonical_order_puts_suit_with_the_outer_layers():
+    shirt, suit, shoes = _ids(3)
+    item_type_map = {shirt: "shirt", suit: "suit", shoes: "shoes"}
+    assert canonical_item_order([shoes, suit, shirt], item_type_map) == [shirt, suit, shoes]
+
+
+def test_canonical_order_covers_every_item_role():
+    assert set(ITEM_ROLE.values()) <= set(ROLES)
+
+
+def test_canonical_role_order_is_the_vocabulary_role_order():
+    assert ROLES == (
+        "full_body",
+        "base_top",
+        "mid_layer",
+        "suit",
+        "outer_layer",
+        "bottom",
+        "legwear",
+        "footwear",
+        "socks",
+        "neckwear",
+        "accessory",
+    )
 
 
 def test_canonical_item_order_sorts_by_role():
@@ -319,3 +386,18 @@ def test_count_composition_covers_every_role_in_item_role():
     assert c.layers == roles.count("mid_layer")
     assert c.bottoms == roles.count("bottom")
     assert c.full_body == roles.count("full_body")
+
+
+def test_remove_legwear_keeps_requested_tights_and_everything_else():
+    skirt, top, tights, requested_tights, shoes = _ids(5)
+    item_type_map = {
+        skirt: "skirt",
+        top: "t-shirt",
+        tights: "tights",
+        requested_tights: "tights",
+        shoes: "shoes",
+    }
+    kept = remove_legwear(
+        [top, skirt, tights, requested_tights, shoes], item_type_map, {requested_tights}
+    )
+    assert kept == [top, skirt, requested_tights, shoes]
