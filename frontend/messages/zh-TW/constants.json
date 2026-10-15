@@ -14,6 +14,7 @@
     "olive": "橄欖綠",
     "orange": "橘色",
     "pink": "粉紅",
+    "coral": "珊瑚色",
     "purple": "紫色",
     "red": "紅色",
     "silver": "銀色",
@@ -76,7 +77,9 @@
     "travel": "旅行",
     "wedding": "婚禮",
     "weekend": "週末",
-    "work": "工作"
+    "work": "工作",
+    "lecture": "講座",
+    "presentation": "簡報"
   },
   "outfitSources": {
     "external": "外部",

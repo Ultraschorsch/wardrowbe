@@ -106,7 +106,7 @@ def test_scorer_heavy_materials_are_real_materials():
 PRE_VOCABULARY_OCCASIONS = {
     "casual", "office", "work", "formal", "smart-casual", "business-casual", "date", "party",
     "sporty", "sport", "outdoor", "travel", "lounge", "beach", "interview", "wedding", "dinner",
-    "brunch", "gym", "running", "hiking", "weekend",
+    "brunch", "gym", "running", "hiking", "weekend", "lecture", "presentation",
 }  # fmt: skip
 
 
@@ -141,8 +141,9 @@ def test_scorer_occasion_formality_comes_from_the_vocabulary(occasion, formaliti
 # The colours the tagger validated before the vocabulary owned them. Dropping one would orphan the
 # items already stored with it, so a removal needs a data migration, not just a vocabulary edit.
 PRE_VOCABULARY_COLORS = {
-    "black", "white", "gray", "navy", "blue", "light-blue", "red", "burgundy", "pink", "green",
-    "olive", "yellow", "orange", "purple", "brown", "tan", "beige", "cream", "gold", "silver",
+    "black", "white", "gray", "navy", "blue", "light-blue", "red", "burgundy", "pink", "coral",
+    "green", "olive", "yellow", "orange", "purple", "brown", "tan", "beige", "cream", "gold",
+    "silver",
 }  # fmt: skip
 
 

@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
 
-import { api } from '@/lib/api';
+import { api, getAccessToken, ApiError } from '@/lib/api';
 import { useSetTokenIfAvailable } from '@/lib/hooks/use-session-token';
 import type { Outfit } from '@/lib/hooks/use-outfits';
 import { queryKeys } from '@/lib/hooks/query-keys';
@@ -96,6 +96,52 @@ export function usePatchOutfit() {
     onSuccess: (_, { id }) => {
       qc.invalidateQueries({ queryKey: queryKeys.outfit(id) });
       qc.invalidateQueries({ queryKey: queryKeys.outfits.all });
+    },
+  });
+}
+
+
+export interface OutfitFromPhotoResult {
+  outfit: Outfit;
+  matched_item_count: number;
+  notes?: string | null;
+}
+
+export function useCreateOutfitFromPhoto() {
+  const qc = useQueryClient();
+  const { data: session } = useSession();
+  return useMutation({
+    mutationFn: async ({ photo, occasion }: { photo: File; occasion?: string }) => {
+      const token = session?.accessToken || getAccessToken();
+      const formData = new FormData();
+      formData.append('photo', photo);
+      formData.append('occasion', occasion || 'casual');
+
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await fetch('/api/v1/outfits/from-photo', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+        headers,
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new ApiError(data.detail || 'Failed to create outfit from photo', response.status, data);
+      }
+
+      return response.json() as Promise<OutfitFromPhotoResult>;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.outfits.all });
+      qc.invalidateQueries({ queryKey: queryKeys.calendarOutfits.all });
+      qc.invalidateQueries({ queryKey: queryKeys.analytics.all });
+      qc.invalidateQueries({ queryKey: queryKeys.learning.all });
+      qc.invalidateQueries({ queryKey: queryKeys.items.all });
     },
   });
 }

@@ -10,6 +10,7 @@ from app.models import User, UserPreference
 DEFAULT_PREFERENCES_RESPONSE = {
     "color_favorites": [],
     "color_avoid": [],
+    "color_season": None,
     "style_profile": {"casual": 50, "formal": 50, "sporty": 50, "minimalist": 50, "bold": 50},
     "default_occasion": "casual",
     "temperature_unit": "celsius",

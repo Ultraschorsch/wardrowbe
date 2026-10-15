@@ -37,6 +37,7 @@ vi.mock('@/lib/hooks/use-notifications', () => ({
 }))
 vi.mock('@/lib/hooks/use-family', () => ({ useFamily: () => ({ data: null, isLoading: false }) }))
 vi.mock('@/lib/hooks/use-user', () => ({ useUserTimezone: () => 'UTC' }))
+vi.mock('@/components/photo-outfit-button', () => ({ PhotoOutfitButton: () => null }))
 
 const analytics = (acceptance: number | null, rating: number | null) => ({
   wardrobe: {

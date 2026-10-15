@@ -14,6 +14,7 @@
     "olive": "Oliv",
     "orange": "Orange",
     "pink": "Rosa",
+    "coral": "Koralle",
     "purple": "Lila",
     "red": "Rot",
     "silver": "Silber",
@@ -76,7 +77,9 @@
     "travel": "Reise",
     "wedding": "Hochzeit",
     "weekend": "Wochenende",
-    "work": "Arbeit"
+    "work": "Arbeit",
+    "lecture": "Vorlesung",
+    "presentation": "Präsentation"
   },
   "outfitSources": {
     "external": "Extern",

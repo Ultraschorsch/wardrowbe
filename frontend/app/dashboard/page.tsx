@@ -35,6 +35,7 @@ import { useWeather } from '@/lib/hooks/use-weather';
 import { usePreferences } from '@/lib/hooks/use-preferences';
 import { useOccasionLabel, useWeatherConditionLabel, useTypeLabel } from '@/lib/hooks/use-translated-constants';
 import { displayValue, tempSymbol, TempUnit } from '@/lib/temperature';
+import { PhotoOutfitButton } from '@/components/photo-outfit-button';
 import { usePendingOutfits, useAcceptOutfit, useRejectOutfit } from '@/lib/hooks/use-outfits';
 import { useSchedules, useNotificationSettings } from '@/lib/hooks/use-notifications';
 import { useFamily } from '@/lib/hooks/use-family';
@@ -604,6 +605,7 @@ function QuickActionsCard() {
             {t('quickActions.getOutfitSuggestion')}
           </Link>
         </Button>
+        <PhotoOutfitButton />
       </CardContent>
     </Card>
   );
