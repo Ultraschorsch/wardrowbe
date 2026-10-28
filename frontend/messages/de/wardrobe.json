@@ -170,20 +170,33 @@
       "originalRestoreError": "Originalbild konnte nicht wiederhergestellt werden",
       "originalRestored": "Originalbild wiederhergestellt",
       "washError": "Konnte nicht als gewaschen markiert werden",
+      "logWear": "Tragen erfassen",
+      "wearLogged": "Tragen erfasst",
+      "wearLogError": "Tragen konnte nicht erfasst werden",
       "washed": "Stück als gewaschen markiert"
     },
     "brand": "Marke",
+    "fit": "Passform",
+    "formality": "Formalität",
+    "material": "Material",
     "name": "Name",
     "notes": "Notizen",
+    "pattern": "Muster",
     "placeholders": {
       "additionalNotes": "Zusätzliche Notizen...",
       "brandName": "Markenname",
       "itemName": "Name des Stücks",
       "selectColor": "Farbe auswählen",
+      "selectFit": "Passform wählen",
+      "selectFormality": "Formalität wählen",
+      "selectMaterial": "Material wählen",
+      "selectPattern": "Muster wählen",
       "subtype": "z. B. Leggings, Chelsea",
       "washIntervalDefault": "Standard: {count}"
     },
     "primaryColor": "Hauptfarbe",
+    "season": "Saison",
+    "style": "Stil",
     "subtype": "Untertyp",
     "titles": {
       "analysisInProgress": "Analyse läuft...",
@@ -260,7 +273,14 @@
     "dismissAll": "Dismiss all",
     "retry": "Retry",
     "dismiss": "Dismiss",
-    "unprotectedWarning": "{count, plural, one {# file could not be protected against interruption (storage full)} other {# files could not be protected against interruption (storage full)}} - keep this tab open until upload completes"
+    "unprotectedWarning": "{count, plural, one {# file could not be protected against interruption (storage full)} other {# files could not be protected against interruption (storage full)}} - keep this tab open until upload completes",
+    "failure": {
+      "tooLarge": "{name} ist größer als {limit} MB",
+      "tooLargeForServer": "{name} ist zu groß, um vom Server angenommen zu werden",
+      "unsupportedFormat": "{name} hat kein unterstütztes Format (JPEG, PNG, WebP oder HEIC)",
+      "duplicate": "{name} ist bereits in deiner Garderobe",
+      "generic": "{name} konnte nicht hochgeladen werden"
+    }
   },
   "wearCount": "{count, plural, one {# Mal getragen} other {# Mal getragen}}",
   "wornAgo": {

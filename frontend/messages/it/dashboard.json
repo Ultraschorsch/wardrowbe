@@ -44,6 +44,13 @@
     "addNewItem": "Aggiungi nuovo capo",
     "description": "Attività comuni per iniziare",
     "getOutfitSuggestion": "Ottieni suggerimento outfit",
+    "photoOutfit": {
+      "analyzing": "Analisi in corso…",
+      "button": "Registra outfit da foto",
+      "failed": "Impossibile elaborare questa foto. Riprova.",
+      "found": "{count, plural, one {Trovato # capo corrispondente. Controlla e modifica, poi segna come indossato.} other {Trovati # capi corrispondenti. Controlla e modifica, poi segna come indossati.}}",
+      "noMatch": "Nessun capo corrispondente. Prova con una foto a figura intera più nitida."
+    },
     "title": "Azioni rapide"
   },
   "subtitle": "Ecco cosa succede con il tuo guardaroba",

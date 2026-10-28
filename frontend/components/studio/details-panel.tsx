@@ -10,11 +10,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { OccasionChips } from '@/components/shared/occasion-chips';
 import { api, getErrorMessage } from '@/lib/api';
-import { ITEM_ROLE } from '@/lib/studio/canonical-order';
 import { mergeAiAssist } from '@/lib/studio/ai-assist-merge';
+import { computeWarnings } from '@/lib/studio/warnings';
 import type { StudioItem } from '@/lib/studio/editor-state';
 import type { Outfit, OutfitItem } from '@/lib/hooks/use-outfits';
 import { useTranslations } from 'next-intl';
+import { useTypeLabel } from '@/lib/hooks/use-translated-constants';
 
 interface DetailsPanelProps {
   items: StudioItem[];
@@ -23,36 +24,6 @@ interface DetailsPanelProps {
   onNameChange: (name: string) => void;
   onOccasionChange: (occasion: string) => void;
   onAiMerge: (merged: StudioItem[]) => void;
-}
-
-function computeWarnings(items: StudioItem[], t: (key: string) => string): string[] {
-  const warnings: string[] = [];
-  const roles = items.map((i) => ITEM_ROLE[i.type] ?? '');
-
-  const hasFullBody = roles.includes('full_body');
-  const hasTop = roles.includes('base_top');
-  const hasBottom = roles.includes('bottom');
-  const hasFootwear = roles.includes('footwear');
-
-  if (!hasFullBody) {
-    if (hasTop && !hasBottom) {
-      warnings.push(t('warnings.noBottoms'));
-    }
-    if (hasBottom && !hasTop) {
-      warnings.push(t('warnings.noTop'));
-    }
-  }
-
-  const bottomCount = roles.filter((r) => r === 'bottom').length;
-  if (bottomCount > 1) {
-    warnings.push(t('warnings.multipleBottoms'));
-  }
-
-  if (items.length >= 3 && !hasFootwear) {
-    warnings.push(t('warnings.noFootwear'));
-  }
-
-  return warnings;
 }
 
 function toStudioItem(item: OutfitItem): StudioItem {
@@ -74,6 +45,7 @@ export function DetailsPanel({
   onOccasionChange,
   onAiMerge,
 }: DetailsPanelProps) {
+  const typeLabel = useTypeLabel();
   const t = useTranslations('outfits.details');
   const [aiLoading, setAiLoading] = useState(false);
   const warnings = computeWarnings(items, t);
@@ -98,7 +70,7 @@ export function DetailsPanel({
       if (skipped.length > 0) {
         for (const { item, reason } of skipped) {
           toast.info(
-            t('skippedItem', { name: item.name || item.type, reason })
+            t('skippedItem', { name: item.name || typeLabel(item.type), reason })
           );
         }
       } else if (merged.length > items.length) {
@@ -136,7 +108,7 @@ export function DetailsPanel({
       <div className="space-y-2">
         <Label className="flex items-center gap-1">
           {t('occasion')}
-          <span className="text-destructive" aria-label="required">*</span>
+          <span className="text-destructive" aria-label={t('required')}>*</span>
         </Label>
         <OccasionChips selected={occasion} onSelect={onOccasionChange} />
         {!occasion && (

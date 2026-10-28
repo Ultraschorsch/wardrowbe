@@ -170,20 +170,33 @@
       "originalRestoreError": "還原原圖失敗",
       "originalRestored": "原圖已還原",
       "washError": "標記為已洗失敗",
+      "logWear": "記錄穿著",
+      "wearLogged": "已記錄穿著",
+      "wearLogError": "記錄穿著失敗",
       "washed": "單品已標記為已洗"
     },
     "brand": "品牌",
+    "fit": "版型",
+    "formality": "正式程度",
+    "material": "材質",
     "name": "名稱",
     "notes": "備註",
+    "pattern": "圖案",
     "placeholders": {
       "additionalNotes": "備註...",
       "brandName": "品牌名稱",
       "itemName": "單品名稱",
       "selectColor": "選擇顏色",
+      "selectFit": "選擇版型",
+      "selectFormality": "選擇正式程度",
+      "selectMaterial": "選擇材質",
+      "selectPattern": "選擇圖案",
       "subtype": "例如：內搭褲、切爾西",
       "washIntervalDefault": "預設：{count}"
     },
     "primaryColor": "主色",
+    "season": "季節",
+    "style": "風格",
     "subtype": "子類型",
     "titles": {
       "analysisInProgress": "分析進行中...",
@@ -260,7 +273,14 @@
     "dismissAll": "Dismiss all",
     "retry": "Retry",
     "dismiss": "Dismiss",
-    "unprotectedWarning": "{count, plural, one {# file could not be protected against interruption (storage full)} other {# files could not be protected against interruption (storage full)}} - keep this tab open until upload completes"
+    "unprotectedWarning": "{count, plural, one {# file could not be protected against interruption (storage full)} other {# files could not be protected against interruption (storage full)}} - keep this tab open until upload completes",
+    "failure": {
+      "tooLarge": "{name} 超過 {limit} MB",
+      "tooLargeForServer": "{name} 太大，伺服器無法接收",
+      "unsupportedFormat": "{name} 的格式不受支援（支援 JPEG、PNG、WebP、HEIC）",
+      "duplicate": "{name} 已在你的衣櫥中",
+      "generic": "{name} 無法上傳"
+    }
   },
   "wearCount": "{count, plural, one {已穿著 # 次} other {已穿著 # 次}}",
   "wornAgo": {
