@@ -3,7 +3,7 @@
 export const CLOTHING_TYPE_VALUES = ['shirt', 't-shirt', 'top', 'pants', 'jeans', 'shorts', 'dress', 'jumpsuit', 'skirt', 'jacket', 'coat', 'sweater', 'hoodie', 'blazer', 'suit', 'vest', 'cardigan', 'polo', 'blouse', 'tank-top', 'shoes', 'sneakers', 'boots', 'sandals', 'socks', 'tights', 'tie', 'hat', 'scarf', 'belt', 'bag', 'accessories'] as const;
 export const MATERIAL_VALUES = ['cotton', 'denim', 'leather', 'wool', 'polyester', 'silk', 'linen', 'knit', 'fleece', 'suede', 'velvet', 'nylon', 'canvas', 'down', 'shearling'] as const;
 export const FORMALITY_VALUES = ['very-casual', 'casual', 'smart-casual', 'business-casual', 'formal', 'very-formal'] as const;
-export const OCCASION_VALUES = ['casual', 'office', 'work', 'formal', 'smart-casual', 'business-casual', 'date', 'party', 'sporty', 'sport', 'outdoor', 'travel', 'lounge', 'beach', 'interview', 'wedding', 'dinner', 'brunch', 'gym', 'running', 'hiking', 'weekend'] as const;
+export const OCCASION_VALUES = ['casual', 'office', 'work', 'formal', 'smart-casual', 'business-casual', 'date', 'party', 'sporty', 'sport', 'outdoor', 'travel', 'lounge', 'beach', 'interview', 'wedding', 'dinner', 'brunch', 'gym', 'running', 'hiking', 'weekend', 'lecture', 'presentation'] as const;
 export const ROLE_VALUES = ['full_body', 'base_top', 'mid_layer', 'suit', 'outer_layer', 'bottom', 'legwear', 'footwear', 'socks', 'neckwear', 'accessory'] as const;
 
 export const ITEM_ROLE: Record<string, string> = {
@@ -51,6 +51,7 @@ export const CLOTHING_COLORS = [
   { value: 'red', hex: '#C44536' },
   { value: 'burgundy', hex: '#722F37' },
   { value: 'pink', hex: '#E8A0B0' },
+  { value: 'coral', hex: '#E2725B' },
   { value: 'green', hex: '#4A7C59' },
   { value: 'olive', hex: '#707B52' },
   { value: 'yellow', hex: '#D4A84B' },
@@ -88,7 +89,6 @@ export const COLOR_ALIASES: Record<string, string> = {
   'dark-brown': 'brown',
   'dark brown': 'brown',
   rust: 'orange',
-  coral: 'pink',
   rose: 'pink',
   mauve: 'purple',
   lavender: 'purple',

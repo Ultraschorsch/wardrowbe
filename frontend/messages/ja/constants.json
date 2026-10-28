@@ -14,6 +14,7 @@
     "olive": "オリーブ",
     "orange": "オレンジ",
     "pink": "ピンク",
+    "coral": "コーラル",
     "purple": "パープル",
     "red": "赤",
     "silver": "シルバー",
@@ -76,7 +77,9 @@
     "travel": "旅行",
     "wedding": "結婚式",
     "weekend": "週末",
-    "work": "仕事"
+    "work": "仕事",
+    "lecture": "講義",
+    "presentation": "プレゼンテーション"
   },
   "outfitSources": {
     "external": "外部",

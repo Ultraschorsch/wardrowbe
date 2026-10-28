@@ -71,6 +71,12 @@ class Settings(BaseSettings):
         parse_redis_url(value)
         return value
 
+    # Internal service-to-service auth (trusted containers only, e.g. wardrowbe-mcp).
+    # When set, requests to /auth/sync carrying this exact value in the
+    # X-Internal-Service-Secret header are treated as trusted and may sync
+    # without a full OIDC id_token. Keep this out of any public-facing proxy.
+    internal_service_secret: str | None = Field(default=None)
+
     # Authentication - OIDC
     oidc_issuer_url: str | None = Field(default=None)
     oidc_client_id: str | None = Field(default=None)
@@ -95,6 +101,8 @@ class Settings(BaseSettings):
     ai_base_url: str = Field(default="")
     ai_api_key: str | None = Field(default=None)
     ai_vision_model: str = Field(default="gpt-4o")  # comma-separated for model rotation
+    # override model just for photo-outfit matching
+    ai_outfit_match_model: str | None = Field(default=None)
     ai_text_model: str = Field(default="gpt-4o")  # comma-separated for model rotation
     ai_timeout: int = Field(default=120)
     ai_max_retries: int = Field(default=3)

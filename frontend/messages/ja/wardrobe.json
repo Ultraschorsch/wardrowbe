@@ -176,17 +176,27 @@
       "washed": "洗濯済みにしました"
     },
     "brand": "ブランド",
+    "fit": "フィット",
+    "formality": "フォーマル度",
+    "material": "素材",
     "name": "名前",
     "notes": "メモ",
+    "pattern": "柄",
     "placeholders": {
       "additionalNotes": "メモ...",
       "brandName": "ブランド名",
       "itemName": "アイテム名",
       "selectColor": "色を選択",
+      "selectFit": "フィットを選択",
+      "selectFormality": "フォーマル度を選択",
+      "selectMaterial": "素材を選択",
+      "selectPattern": "柄を選択",
       "subtype": "例：レギンス、チェルシー",
       "washIntervalDefault": "デフォルト：{count}"
     },
     "primaryColor": "メインカラー",
+    "season": "シーズン",
+    "style": "スタイル",
     "subtype": "サブタイプ",
     "titles": {
       "analysisInProgress": "分析中...",

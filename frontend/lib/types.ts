@@ -1,4 +1,9 @@
-import { CLOTHING_TYPE_VALUES, OCCASION_VALUES } from '@/lib/generated/garment-vocabulary';
+import {
+  CLOTHING_TYPE_VALUES,
+  FORMALITY_VALUES,
+  MATERIAL_VALUES,
+  OCCASION_VALUES,
+} from '@/lib/generated/garment-vocabulary';
 
 // API response types matching backend schemas
 
@@ -150,9 +155,14 @@ export interface AIEndpoint {
   enabled: boolean;
 }
 
+export type ColorSeason = 'spring' | 'summer' | 'autumn' | 'winter';
+
+export const COLOR_SEASONS: ColorSeason[] = ['spring', 'summer', 'autumn', 'winter'];
+
 export interface Preferences {
   color_favorites: string[];
   color_avoid: string[];
+  color_season: ColorSeason | null;
   style_profile: StyleProfile;
   default_occasion: string;
   temperature_unit: 'celsius' | 'fahrenheit';
@@ -196,11 +206,24 @@ export type Occasion = (typeof OCCASION_VALUES)[number];
 
 // Pickers offer only these so that the chip row stays short; the backend accepts every value in
 // OCCASION_VALUES, and outfits created through the API can carry any of them.
-const FEATURED_OCCASION_VALUES = ['casual', 'office', 'formal', 'date', 'sporty', 'outdoor'] as const satisfies readonly Occasion[];
+const FEATURED_OCCASION_VALUES = ['casual', 'office', 'formal', 'date', 'sporty', 'outdoor', 'lecture', 'presentation'] as const satisfies readonly Occasion[];
 
 export type FeaturedOccasion = (typeof FEATURED_OCCASION_VALUES)[number];
 
 export const FEATURED_OCCASIONS = FEATURED_OCCASION_VALUES.map((value) => ({ value }));
+
+// Tag-editor options; labels come from the constants.* catalogs.
+export const CLOTHING_PATTERNS = ['solid', 'striped', 'plaid', 'checkered', 'floral', 'graphic', 'geometric', 'polka-dot', 'camouflage', 'animal-print'] as const;
+
+export const CLOTHING_MATERIALS = MATERIAL_VALUES;
+
+export const CLOTHING_FORMALITY = FORMALITY_VALUES;
+
+export const CLOTHING_FITS = ['slim', 'regular', 'relaxed', 'oversized', 'tailored', 'cropped'] as const;
+
+export const CLOTHING_STYLES = ['casual', 'classic', 'sporty', 'minimalist', 'bohemian', 'preppy', 'streetwear', 'elegant', 'athletic', 'vintage', 'modern', 'rugged'] as const;
+
+export const CLOTHING_SEASONS = ['spring', 'summer', 'fall', 'winter', 'all-season'] as const;
 
 // Family types
 export interface FamilyMember {

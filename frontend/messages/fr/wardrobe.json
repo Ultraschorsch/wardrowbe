@@ -176,17 +176,27 @@
       "washed": "Article marqué comme lavé"
     },
     "brand": "Marque",
+    "fit": "Coupe",
+    "formality": "Formalité",
+    "material": "Matière",
     "name": "Nom",
     "notes": "Notes",
+    "pattern": "Motif",
     "placeholders": {
       "additionalNotes": "Notes supplémentaires...",
       "brandName": "Nom de la marque",
       "itemName": "Nom de l'article",
       "selectColor": "Sélectionner une couleur",
+      "selectFit": "Choisir la coupe",
+      "selectFormality": "Choisir la formalité",
+      "selectMaterial": "Choisir une matière",
+      "selectPattern": "Choisir un motif",
       "subtype": "ex. leggings, chelsea",
       "washIntervalDefault": "Par défaut : {count}"
     },
     "primaryColor": "Couleur principale",
+    "season": "Saison",
+    "style": "Style",
     "subtype": "Sous-type",
     "titles": {
       "analysisInProgress": "Analyse en cours...",

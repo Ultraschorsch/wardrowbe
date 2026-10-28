@@ -176,17 +176,27 @@
       "washed": "Stück als gewaschen markiert"
     },
     "brand": "Marke",
+    "fit": "Passform",
+    "formality": "Formalität",
+    "material": "Material",
     "name": "Name",
     "notes": "Notizen",
+    "pattern": "Muster",
     "placeholders": {
       "additionalNotes": "Zusätzliche Notizen...",
       "brandName": "Markenname",
       "itemName": "Name des Stücks",
       "selectColor": "Farbe auswählen",
+      "selectFit": "Passform wählen",
+      "selectFormality": "Formalität wählen",
+      "selectMaterial": "Material wählen",
+      "selectPattern": "Muster wählen",
       "subtype": "z. B. Leggings, Chelsea",
       "washIntervalDefault": "Standard: {count}"
     },
     "primaryColor": "Hauptfarbe",
+    "season": "Saison",
+    "style": "Stil",
     "subtype": "Untertyp",
     "titles": {
       "analysisInProgress": "Analyse läuft...",

@@ -1,3 +1,4 @@
+import hmac
 from datetime import datetime, timedelta
 from typing import Annotated, NoReturn
 from urllib.parse import urlencode
@@ -218,6 +219,23 @@ async def _oidc_identity(
     return sync_data, "oidc", email_verified
 
 
+def _is_trusted_internal_service(request: Request) -> bool:
+    """True if the request carries a valid internal-service secret.
+
+    Lets trusted containers on the internal docker network (e.g. the
+    read-only wardrowbe-mcp server) sync a user without a full OIDC
+    id_token, even when OIDC is configured for normal browser/app logins.
+    Never expose this header path through a public-facing proxy.
+    """
+    secret = settings.internal_service_secret
+    if not secret:
+        return False
+    provided = request.headers.get("x-internal-service-secret")
+    return provided is not None and hmac.compare_digest(
+        provided.encode("utf-8"), secret.encode("utf-8")
+    )
+
+
 async def _body_identity(
     request: Request, sync_data: UserSyncRequest | None
 ) -> tuple[UserSyncRequest, str, bool]:
@@ -227,6 +245,13 @@ async def _body_identity(
             detail="Request body is required",
         )
     if settings.dev_mode:
+        if not sync_data.email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="email is required",
+            )
+        return sync_data, "dev", True
+    if _is_trusted_internal_service(request):
         if not sync_data.email:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

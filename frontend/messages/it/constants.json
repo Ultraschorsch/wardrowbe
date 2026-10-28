@@ -14,6 +14,7 @@
     "olive": "Oliva",
     "orange": "Arancione",
     "pink": "Rosa",
+    "coral": "Corallo",
     "purple": "Viola",
     "red": "Rosso",
     "silver": "Argento",
@@ -76,7 +77,9 @@
     "travel": "Viaggio",
     "wedding": "Matrimonio",
     "weekend": "Fine settimana",
-    "work": "Lavoro"
+    "work": "Lavoro",
+    "lecture": "Lezione",
+    "presentation": "Presentazione"
   },
   "outfitSources": {
     "external": "Esterno",

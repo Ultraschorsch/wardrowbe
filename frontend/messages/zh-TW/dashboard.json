@@ -44,6 +44,13 @@
     "addNewItem": "新增單品",
     "description": "常用功能",
     "getOutfitSuggestion": "取得穿搭建議",
+    "photoOutfit": {
+      "analyzing": "分析中…",
+      "button": "透過照片記錄穿搭",
+      "failed": "無法處理這張照片，請再試一次。",
+      "found": "{count, plural, other {找到 # 件相符的單品。請檢查並調整，然後標記為已穿。}}",
+      "noMatch": "沒有相符的單品。請嘗試更清晰的全身照。"
+    },
     "title": "快速操作"
   },
   "subtitle": "以下是你衣櫥的最新動態",

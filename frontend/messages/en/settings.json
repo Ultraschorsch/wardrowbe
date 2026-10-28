@@ -144,5 +144,16 @@
     "unit": "Temperature Unit"
   },
   "title": "Settings",
-  "unsavedChanges": "You have unsaved changes. Leave this page?"
+  "unsavedChanges": "You have unsaved changes. Leave this page?",
+  "colorSeason": {
+    "title": "Color Season",
+    "description": "Optional: set your personal color-season type to get outfit suggestions that lean toward colors that suit you.",
+    "select": "Your color season",
+    "none": "Not set",
+    "spring": "Spring",
+    "summer": "Summer",
+    "autumn": "Autumn",
+    "winter": "Winter",
+    "hint": "Recommendations will favor flattering combinations for this season, including pairings you might not have tried yourself."
+  }
 }

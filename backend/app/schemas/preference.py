@@ -71,6 +71,11 @@ class PreferenceBase(BaseModel):
     # Color preferences
     color_favorites: list[str] = Field(default_factory=list, description="Favorite colors")
     color_avoid: list[str] = Field(default_factory=list, description="Colors to avoid")
+    color_season: str | None = Field(
+        default=None,
+        pattern="^(spring|summer|autumn|winter)$",
+        description="Personal color-season analysis type, if known",
+    )
 
     # Style preferences
     style_profile: StyleProfile = Field(default_factory=StyleProfile)
@@ -139,6 +144,7 @@ class PreferenceCreate(PreferenceBase):
 class PreferenceUpdate(BaseModel):
     color_favorites: ColorList | None = None
     color_avoid: ColorList | None = None
+    color_season: str | None = Field(default=None, pattern="^(spring|summer|autumn|winter)$")
     style_profile: StyleProfile | None = None
     default_occasion: Occasion | None = None
     temperature_unit: str | None = Field(default=None, pattern="^(celsius|fahrenheit)$")

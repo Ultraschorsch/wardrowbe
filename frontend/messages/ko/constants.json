@@ -14,6 +14,7 @@
     "olive": "올리브",
     "orange": "오렌지",
     "pink": "핑크",
+    "coral": "코랄",
     "purple": "퍼플",
     "red": "레드",
     "silver": "실버",
@@ -76,7 +77,9 @@
     "travel": "여행",
     "wedding": "결혼식",
     "weekend": "주말",
-    "work": "업무"
+    "work": "업무",
+    "lecture": "강의",
+    "presentation": "발표"
   },
   "outfitSources": {
     "external": "외부",

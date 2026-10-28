@@ -72,6 +72,7 @@ async def validate_item_ownership(
 
 class StudioService:
     CLONE_SOFT_IDEMPOTENCY_SECONDS = 5
+    CREATE_SOFT_IDEMPOTENCY_SECONDS = 5
 
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -113,6 +114,29 @@ class StudioService:
     ) -> Outfit:
         items = await validate_item_ownership(self.db, user.id, item_ids)
         ordered = self._order_items_canonically(items)
+        recent_cutoff = datetime.now(UTC) - timedelta(seconds=self.CREATE_SOFT_IDEMPOTENCY_SECONDS)
+        recent_result = await self.db.execute(
+            select(Outfit)
+            .where(
+                and_(
+                    Outfit.user_id == user.id,
+                    Outfit.occasion == occasion,
+                    Outfit.source == OutfitSource.manual,
+                    Outfit.created_at >= recent_cutoff,
+                )
+            )
+            .options(
+                selectinload(Outfit.items).selectinload(OutfitItem.item),
+                selectinload(Outfit.feedback),
+            )
+            .order_by(Outfit.created_at.desc())
+        )
+        candidates = recent_result.scalars().all()
+        requested_id_set = set(item_ids)
+        for candidate in candidates:
+            candidate_id_set = {oi.item_id for oi in candidate.items}
+            if candidate_id_set == requested_id_set:
+                return candidate
 
         # Marking an undated outfit worn means it was worn today, as wear_today assumes.
         if mark_worn and scheduled_for is None:
