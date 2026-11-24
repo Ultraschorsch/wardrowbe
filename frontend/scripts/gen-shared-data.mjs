@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Writes lib/generated/*.ts from the JSON files in backend/app/data, which are the only places
-// garment vocabulary (types, roles, materials, formality, occasions, colours and colour aliases),
+// garment vocabulary (types, roles, subtypes, materials, formality, occasions, colours and colour aliases),
 // locale codes, the rating, temperature threshold, repeat-avoidance and style score scales, and the
 // preference defaults are edited by hand. Run with --check to fail when any committed output is stale. It reads ../backend, which
 // is outside the frontend Docker build context, so it must never run from build or prebuild.
@@ -20,8 +20,24 @@ const header = (source) => [
   '// Do not edit by hand; run `npm run vocab:gen`.',
 ];
 
-function renderVocabulary({ roles: roleOrder, types, materials, formality, occasions, colors, color_aliases: colorAliases }) {
+function renderVocabulary({
+  roles: roleOrder,
+  types,
+  materials,
+  formality,
+  patterns,
+  styles,
+  seasons,
+  fits,
+  occasions,
+  colors,
+  color_aliases: colorAliases,
+}) {
   const roles = types.map(({ value, role }) => `  ${key(value)}: ${quote(role)},`).join('\n');
+  const subtypes = types
+    .filter((type) => type.subtypes)
+    .map(({ value, subtypes: values }) => `  ${key(value)}: [${values.map(quote).join(', ')}],`)
+    .join('\n');
   const swatches = colors.map(({ value, hex }) => `  { value: ${quote(value)}, hex: ${quote(hex)} },`).join('\n');
   const aliases = Object.entries(colorAliases)
     .map(([alias, color]) => `  ${key(alias)}: ${quote(color)},`)
@@ -30,11 +46,21 @@ function renderVocabulary({ roles: roleOrder, types, materials, formality, occas
     `export const CLOTHING_TYPE_VALUES = ${list(types.map((t) => t.value))};`,
     `export const MATERIAL_VALUES = ${list(materials)};`,
     `export const FORMALITY_VALUES = ${list(formality)};`,
+    `export const PATTERN_VALUES = ${list(patterns)};`,
+    `export const ITEM_STYLE_VALUES = ${list(styles)};`,
+    `export const SEASON_VALUES = ${list(seasons)};`,
+    `export const FIT_VALUES = ${list(fits)};`,
     `export const OCCASION_VALUES = ${list(occasions.map((o) => o.value))};`,
     `export const ROLE_VALUES = ${list(roleOrder)};`,
+    `export const WORN_ALONE_TYPES: readonly string[] = ${list(types.filter((t) => t.worn_alone).map((t) => t.value))};`,
     '',
     'export const ITEM_ROLE: Record<string, string> = {',
     roles,
+    '};',
+    '',
+    '// Suggestions rather than a closed set: subtype is free text, and the model may answer outside it.',
+    'export const CLOTHING_SUBTYPES: Record<string, readonly string[]> = {',
+    subtypes,
     '};',
     '',
     'export const CLOTHING_COLORS = [',

@@ -14,24 +14,25 @@ from app.utils.clothing import (
     missing_regions,
     remove_legwear,
 )
-from app.utils.garment_vocabulary import ROLES
+from app.utils.garment_vocabulary import ROLES, WORN_ALONE_TYPES
 
 
 def _ids(n):
     return [uuid4() for _ in range(n)]
 
 
-def test_removes_duplicate_bottom():
-    pants_id, shorts_id, shirt_id, shoes_id = _ids(4)
+@pytest.mark.parametrize("second_bottom", ["shorts", "overalls"])
+def test_removes_duplicate_bottom(second_bottom):
+    pants_id, second_id, shirt_id, shoes_id = _ids(4)
     item_type_map = {
         shirt_id: "shirt",
         pants_id: "pants",
-        shorts_id: "shorts",
+        second_id: second_bottom,
         shoes_id: "sneakers",
     }
-    result = deduplicate_by_body_slot([shirt_id, pants_id, shorts_id, shoes_id], item_type_map)
+    result = deduplicate_by_body_slot([shirt_id, pants_id, second_id, shoes_id], item_type_map)
     assert pants_id in result
-    assert shorts_id not in result
+    assert second_id not in result
     assert len(result) == 3
 
 
@@ -62,15 +63,28 @@ def test_allows_layering_base_top_plus_mid_layer():
     assert len(result) == 3
 
 
-def test_allows_layering_base_top_plus_outer_layer():
-    shirt_id, jacket_id, pants_id = _ids(3)
-    item_type_map = {
-        shirt_id: "shirt",
-        jacket_id: "jacket",
-        pants_id: "pants",
-    }
-    result = deduplicate_by_body_slot([shirt_id, jacket_id, pants_id], item_type_map)
+@pytest.mark.parametrize(
+    ("under", "over"),
+    [
+        ("shirt", "jacket"),
+        ("hoodie", "jacket"),
+        ("hoodie", "coat"),
+        ("hoodie", "vest"),
+        ("hoodie", "cardigan"),
+        ("t-shirt", "hoodie"),
+    ],
+)
+def test_allows_layering_a_piece_under_another(under, over):
+    under_id, over_id, pants_id = _ids(3)
+    item_type_map = {under_id: under, over_id: over, pants_id: "pants"}
+    result = deduplicate_by_body_slot([under_id, over_id, pants_id], item_type_map)
     assert len(result) == 3
+
+
+def test_two_hoodies_still_clash():
+    first, second, pants = _ids(3)
+    item_type_map = {first: "hoodie", second: "hoodie", pants: "jeans"}
+    assert deduplicate_by_body_slot([first, second, pants], item_type_map) == [first, pants]
 
 
 def test_keeps_first_item_per_slot():
@@ -147,6 +161,13 @@ def test_tights_coexist_with_dress():
     dress, tights, shoes = _ids(3)
     item_type_map = {dress: "dress", tights: "tights", shoes: "shoes"}
     assert deduplicate_by_body_slot([dress, tights, shoes], item_type_map) == [dress, tights, shoes]
+
+
+def test_overalls_leave_room_for_a_top():
+    overalls, tshirt, heels = _ids(3)
+    item_type_map = {overalls: "overalls", tshirt: "t-shirt", heels: "heels"}
+    result = deduplicate_by_body_slot([overalls, tshirt, heels], item_type_map)
+    assert result == [overalls, tshirt, heels]
 
 
 def test_multiple_accessories_allowed():
@@ -389,7 +410,9 @@ def test_count_composition_covers_every_role_in_item_role():
     c = count_composition([(t, 1) for t in ITEM_ROLE])
     roles = list(ITEM_ROLE.values())
     assert c.base_tops == roles.count("base_top")
-    assert c.layers == roles.count("mid_layer")
+    assert c.layers == sum(
+        role == "mid_layer" and t not in WORN_ALONE_TYPES for t, role in ITEM_ROLE.items()
+    )
     assert c.bottoms == roles.count("bottom")
     assert c.full_body == roles.count("full_body")
 
@@ -431,6 +454,7 @@ def _typed(*types):
         (("jeans", "sneakers"), ("dress",), ["upper"]),
         (("bag",), ("shirt", "jeans", "shoes"), ["upper", "lower", "feet"]),
         (("tights", "skirt", "blouse"), ("hat",), []),
+        (("overalls", "heels"), ("t-shirt", "jeans", "sneakers"), ["upper"]),
     ],
     ids=[
         "no-top",
@@ -447,6 +471,7 @@ def _typed(*types):
         "only-a-dress-could-cover-the-top",
         "accessory-only",
         "wardrobe-has-no-shoes",
+        "overalls-need-a-top",
     ],
 )
 def test_missing_regions_only_counts_what_the_wardrobe_can_fill(outfit, wardrobe, expected):
@@ -503,7 +528,7 @@ def test_has_wearable_piece(outfit, wardrobe, expected):
     [
         (("skirt",), ("t-shirt", "sneakers"), True),
         (("skirt",), ("dress", "sneakers"), False),
-        (("coat",), ("hoodie", "jeans", "boots"), False),
+        (("coat",), ("hoodie", "jeans", "boots"), True),
         (("suit",), ("dress", "shoes"), False),
         (("bag",), ("dress", "shoes"), True),
         (("hoodie",), ("dress", "sneakers"), True),
@@ -554,11 +579,12 @@ def test_fill_prefers_a_top_to_a_better_ranked_hoodie():
     assert filled == [jeans, sneakers, ranked[1]]
 
 
-def test_fill_never_puts_a_hoodie_under_a_coat():
-    (coat, jeans, boots), outfit_types = _typed("coat", "jeans", "boots")
-    ranked, ranked_types = _typed("hoodie", "blazer")
-    filled = fill_missing_regions([coat, jeans, boots], ranked, outfit_types | ranked_types)
-    assert filled == [coat, jeans, boots]
+@pytest.mark.parametrize("over", ["coat", "jacket"])
+def test_fill_puts_a_hoodie_under_outerwear(over):
+    (outer, jeans, boots), outfit_types = _typed(over, "jeans", "boots")
+    (hoodie,), ranked_types = _typed("hoodie")
+    filled = fill_missing_regions([outer, jeans, boots], [hoodie], outfit_types | ranked_types)
+    assert filled == [outer, jeans, boots, hoodie]
 
 
 def test_fill_uses_a_dress_when_top_and_bottom_are_both_missing():

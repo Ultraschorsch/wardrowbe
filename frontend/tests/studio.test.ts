@@ -180,7 +180,30 @@ describe('mergeAiAssist', () => {
     expect(merged).toHaveLength(2);
     expect(skipped).toHaveLength(1);
     expect(skipped[0].item.id).toBe('2');
-    expect(skipped[0].reason).toContain('base top');
+    expect(skipped[0].conflict.id).toBe('1');
+  });
+
+  it('names an AI item merged earlier in the same call as the conflict', () => {
+    const canvas = [makeItem('1', 'sneakers')];
+    const aiItems = [makeItem('2', 'dress'), makeItem('3', 'shirt')];
+    const { merged, skipped } = mergeAiAssist(canvas, aiItems);
+    expect(merged.map((item) => item.id)).toEqual(['2', '1']);
+    expect(skipped.map((s) => [s.item.id, s.conflict.id])).toEqual([['3', '2']]);
+  });
+
+  it('layers a coat or cardigan from the AI over a hoodie on the canvas', () => {
+    const canvas = [makeItem('1', 'hoodie'), makeItem('2', 'jeans')];
+    const aiItems = [makeItem('3', 'coat'), makeItem('4', 'cardigan')];
+    const { merged, skipped } = mergeAiAssist(canvas, aiItems);
+    expect(merged.map((item) => item.id).sort()).toEqual(['1', '2', '3', '4']);
+    expect(skipped).toHaveLength(0);
+  });
+
+  it('skips a second hoodie from the AI', () => {
+    const canvas = [makeItem('1', 'hoodie')];
+    const { merged, skipped } = mergeAiAssist(canvas, [makeItem('2', 'hoodie')]);
+    expect(merged.map((item) => item.id)).toEqual(['1']);
+    expect(skipped.map((s) => [s.item.id, s.conflict.id])).toEqual([['2', '1']]);
   });
 
   it('skips items already on canvas', () => {
@@ -205,6 +228,25 @@ describe('mergeAiAssist', () => {
     expect(merged[0].type).toBe('shirt');
     expect(merged[1].type).toBe('jeans');
     expect(merged[2].type).toBe('sneakers');
+  });
+});
+
+describe('computeWarnings with a layer worn alone', () => {
+  const t = (key: string) => key;
+
+  it('counts a hoodie as the top', () => {
+    const items = [makeItem('1', 'hoodie'), makeItem('2', 'jeans'), makeItem('3', 'sneakers')];
+    expect(computeWarnings(items, t)).toEqual([]);
+  });
+
+  it('asks for bottoms when a hoodie is the only piece', () => {
+    expect(computeWarnings([makeItem('1', 'hoodie')], t)).toContain('warnings.noBottoms');
+  });
+
+  it('still asks for a top under a coat', () => {
+    expect(computeWarnings([makeItem('1', 'coat'), makeItem('2', 'jeans')], t)).toContain(
+      'warnings.noTop'
+    );
   });
 });
 

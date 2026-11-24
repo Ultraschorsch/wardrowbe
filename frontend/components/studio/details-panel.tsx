@@ -9,13 +9,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { OccasionChips } from '@/components/shared/occasion-chips';
-import { api, getErrorMessage } from '@/lib/api';
+import { api } from '@/lib/api';
+import { useDescribeError } from '@/lib/errors';
 import { mergeAiAssist } from '@/lib/studio/ai-assist-merge';
 import { computeWarnings } from '@/lib/studio/warnings';
 import type { StudioItem } from '@/lib/studio/editor-state';
 import type { Outfit, OutfitItem } from '@/lib/hooks/use-outfits';
 import { useTranslations } from 'next-intl';
 import { useTypeLabel } from '@/lib/hooks/use-translated-constants';
+import { useAiUiEnabled } from '@/lib/hooks/use-features';
 
 interface DetailsPanelProps {
   items: StudioItem[];
@@ -46,8 +48,11 @@ export function DetailsPanel({
   onAiMerge,
 }: DetailsPanelProps) {
   const typeLabel = useTypeLabel();
+  const itemLabel = (item: StudioItem) => item.name || typeLabel(item.type);
   const t = useTranslations('outfits.details');
+  const describeError = useDescribeError();
   const [aiLoading, setAiLoading] = useState(false);
+  const aiUiEnabled = useAiUiEnabled();
   const warnings = computeWarnings(items, t);
 
   const handleAiAssist = async () => {
@@ -68,9 +73,9 @@ export function DetailsPanel({
       onAiMerge(merged);
 
       if (skipped.length > 0) {
-        for (const { item, reason } of skipped) {
+        for (const { item, conflict } of skipped) {
           toast.info(
-            t('skippedItem', { name: item.name || typeLabel(item.type), reason })
+            t('skippedItem', { name: itemLabel(item), other: itemLabel(conflict) })
           );
         }
       } else if (merged.length > items.length) {
@@ -81,7 +86,7 @@ export function DetailsPanel({
         toast.info(t('aiNoSuggestions'));
       }
     } catch (error) {
-      toast.error(getErrorMessage(error, t('aiFailed')));
+      toast.error(describeError(error, t('aiFailed')));
     } finally {
       setAiLoading(false);
     }
@@ -133,25 +138,27 @@ export function DetailsPanel({
         </Alert>
       )}
 
-      <Button
-        type="button"
-        variant="outline"
-        className="w-full"
-        disabled={items.length === 0 || !occasion || aiLoading}
-        onClick={handleAiAssist}
-      >
-        {aiLoading ? (
-          <>
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            {t('aiThinking')}
-          </>
-        ) : (
-          <>
-            <Sparkles className="h-4 w-4 mr-2" />
-            {t('letAiFinish')}
-          </>
-        )}
-      </Button>
+      {aiUiEnabled && (
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full"
+          disabled={items.length === 0 || !occasion || aiLoading}
+          onClick={handleAiAssist}
+        >
+          {aiLoading ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              {t('aiThinking')}
+            </>
+          ) : (
+            <>
+              <Sparkles className="h-4 w-4 mr-2" />
+              {t('letAiFinish')}
+            </>
+          )}
+        </Button>
+      )}
     </div>
   );
 }

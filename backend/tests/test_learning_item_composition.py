@@ -1,12 +1,15 @@
+import pytest
+
 from app.services.learning_service import slot_composition
 
 
-def test_every_wearable_type_lands_in_its_slot():
-    result = slot_composition(["polo", "jeans", "sneakers", "blazer", "socks", "tie"])
+@pytest.mark.parametrize("shoes", ["sneakers", "heels"])
+def test_every_wearable_type_lands_in_its_slot(shoes):
+    result = slot_composition(["polo", "jeans", shoes, "blazer", "socks", "tie"])
     assert result == {
         "top": "polo",
         "bottom": "jeans",
-        "shoes": "sneakers",
+        "shoes": shoes,
         "outerwear": "blazer",
         "socks": "socks",
         "neckwear": "tie",
@@ -14,7 +17,7 @@ def test_every_wearable_type_lands_in_its_slot():
 
 
 def test_hoodie_and_tank_top_are_not_dropped():
-    assert slot_composition(["Hoodie", "tank-top"]) == {"outerwear": "hoodie", "top": "tank-top"}
+    assert slot_composition(["Hoodie", "tank-top"]) == {"mid_layer": "hoodie", "top": "tank-top"}
 
 
 def test_layers_dresses_and_suits_are_recorded_under_their_role():
@@ -23,4 +26,4 @@ def test_layers_dresses_and_suits_are_recorded_under_their_role():
 
 
 def test_non_types_and_accessories_are_ignored():
-    assert slot_composition(["heels", "unknown", None, "hat", "bag"]) == {}
+    assert slot_composition(["loafers", "unknown", None, "hat", "bag"]) == {}
