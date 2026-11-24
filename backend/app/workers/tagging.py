@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
+import httpx
 from arq import Retry
 from sqlalchemy import select, update
 
@@ -12,13 +13,19 @@ from app.config import get_settings
 from app.models.item import TAG_COLUMNS, ClothingItem, ItemStatus, TaggedBy, TaggingStatus
 from app.models.preference import UserPreference
 from app.models.user import User
-from app.services.ai_service import AIService, ClothingTags, repeats_identically
+from app.services.ai_service import (
+    AIDisabledError,
+    AIService,
+    ClothingTags,
+    repeats_identically,
+)
+from app.utils.errors import Coded
 from app.utils.locale import DEFAULT_LOCALE
 from app.workers.db import get_db_session
+from app.workers.queues import WORKER_MAX_TRIES
 
 logger = logging.getLogger(__name__)
 
-TAGGING_MAX_TRIES = 3
 
 # Margin left below job_timeout so the in-job call budget always fires before
 # arq's own kill (which does not retry - see _tagging_call_budget).
@@ -36,7 +43,7 @@ class ItemVanishedError(Exception):
 
 
 def _is_final_attempt(ctx: dict) -> bool:
-    return int(ctx.get("job_try") or 1) >= TAGGING_MAX_TRIES
+    return int(ctx.get("job_try") or 1) >= WORKER_MAX_TRIES
 
 
 def retry_delay_seconds(ctx: dict) -> int:
@@ -148,7 +155,42 @@ async def mark_item_tagging_skipped(ctx: dict, item_id: str) -> None:
         await db.close()
 
 
-async def update_item_status_to_error(ctx: dict, item_id: str, error_msg: str) -> None:
+MISSING_PHOTO_FAILURE = {
+    "error": "Image not found",
+    "error_code": "IMAGE_FILE_MISSING",
+    "error_params": {},
+}
+
+
+def _failure_code(exc: BaseException) -> dict[str, Any]:
+    if isinstance(exc, Coded):
+        return {"error_code": exc.code, "error_params": dict(exc.params)}
+    if isinstance(exc, httpx.HTTPStatusError):
+        return {"error_code": "AI_HTTP_ERROR", "error_params": {"status": exc.response.status_code}}
+    if isinstance(exc, httpx.TimeoutException):
+        return {"error_code": "AI_TIMEOUT", "error_params": {}}
+    if isinstance(exc, httpx.DecodingError):
+        return {"error_code": "AI_RESPONSE_UNUSABLE", "error_params": {}}
+    if isinstance(exc, httpx.RequestError):
+        return {"error_code": "AI_UNREACHABLE", "error_params": {}}
+    if isinstance(exc, TimeoutError):
+        return {"error_code": "ANALYSIS_TIMED_OUT", "error_params": {}}
+    if isinstance(exc, AIDisabledError):
+        return {"error_code": "AI_VISION_DISABLED", "error_params": {}}
+    return {"error_code": "AI_ANALYSIS_FAILED", "error_params": {}}
+
+
+def analysis_failure(exc: BaseException, photo: Path) -> dict[str, Any]:
+    if (
+        isinstance(exc, FileNotFoundError)
+        and exc.filename is not None
+        and Path(exc.filename) == photo
+    ):
+        return dict(MISSING_PHOTO_FAILURE)
+    return {"error": str(exc) or type(exc).__name__, **_failure_code(exc)}
+
+
+async def update_item_status_to_error(ctx: dict, item_id: str, failure: dict[str, Any]) -> None:
     try:
         db = get_db_session(ctx)
         try:
@@ -162,7 +204,7 @@ async def update_item_status_to_error(ctx: dict, item_id: str, error_msg: str) -
                 )
                 .values(
                     status=ItemStatus.error,
-                    ai_raw_response={"error": error_msg},
+                    ai_raw_response=failure,
                     ai_failed_at=datetime.now(UTC),
                 )
             )
@@ -173,7 +215,32 @@ async def update_item_status_to_error(ctx: dict, item_id: str, error_msg: str) -
         logger.error(f"Failed to update item {item_id} status to error: {e}")
 
 
-async def tag_item_image(ctx: dict, item_id: str, image_path: str) -> dict[str, Any]:
+_NOTHING = (None, [], "", {})
+_UNSET_LABEL = (None, "", "unknown")
+
+
+def _ai_may_set(
+    field: str, current: Any, value: Any, *, replace: bool, kept: frozenset[str]
+) -> bool:
+    """Whether the AI's `value` goes into `field`, given what the item holds now.
+
+    Normally the AI only fills what is empty (an unknown type or colour counts as empty).
+    On "re-analyse and replace" it overwrites its own earlier answers, but never a field
+    in `kept` (the keys a person set or cleared by hand, which it never refills either)
+    and never with an empty or unknown answer.
+    """
+    if field in kept:
+        return False
+    if replace:
+        return value not in _NOTHING and value != "unknown"
+    if field in ("type", "primary_color"):
+        return not current or current == "unknown"
+    return current in _NOTHING
+
+
+async def tag_item_image(
+    ctx: dict, item_id: str, image_path: str, replace: bool = False
+) -> dict[str, Any]:
     """
     Analyze an item's image and update it with AI-generated tags.
 
@@ -181,6 +248,8 @@ async def tag_item_image(ctx: dict, item_id: str, image_path: str) -> dict[str, 
         ctx: arq context
         item_id: UUID of the item to tag
         image_path: Path to the image file
+        replace: overwrite the AI's earlier tags (except those a person edited) instead
+            of only filling the empty ones
 
     Returns:
         Dict with status and tags
@@ -196,9 +265,8 @@ async def tag_item_image(ctx: dict, item_id: str, image_path: str) -> dict[str, 
         # Verify image exists
         path = Path(image_path)
         if not path.exists():
-            error_msg = f"Image not found: {image_path}"
-            logger.error(error_msg)
-            await update_item_status_to_error(ctx, item_id, error_msg)
+            logger.error(f"Image not found for item {item_id}: {image_path}")
+            await update_item_status_to_error(ctx, item_id, dict(MISSING_PHOTO_FAILURE))
             return {"status": "error", "error": "Image not found"}
 
         # Get user's AI endpoints from preferences, and mark this attempt as started
@@ -268,8 +336,17 @@ async def tag_item_image(ctx: dict, item_id: str, image_path: str) -> dict[str, 
             # same loop would otherwise make the guard for the later two fields see the
             # already-updated status and skip them even outside of a race.
             was_pending = item.tagging_status == TaggingStatus.pending
+            # Keys the person set or cleared by hand; an empty one stays empty.
+            kept = frozenset((item.tags or {}).get("user_edited_keys") or [])
+            # A subtype set by hand confirms the type it belongs to.
+            if replace and "subtype" in kept and item.subtype and item.type not in _UNSET_LABEL:
+                kept |= {"type"}
+            type_before = item.type
 
             for field, value in ai_fields.items():
+                # An item archived before or while its analysis ran keeps its archived status.
+                if field == "status" and item.is_archived:
+                    value = ItemStatus.archived
                 # Always update AI metadata fields (including tags JSONB and description)
                 if field in (
                     "ai_processed",
@@ -292,34 +369,48 @@ async def tag_item_image(ctx: dict, item_id: str, image_path: str) -> dict[str, 
                     # so an earlier run's score must not survive the fill below.
                     merged.pop("logprobs_confidence", None)
                     for key, val in (value or {}).items():
-                        if val in (None, [], "", {}):
+                        if val in _NOTHING:
                             continue
-                        if merged.get(key) in (None, [], "", {}):
+                        if _ai_may_set(key, merged.get(key), val, replace=replace, kept=kept):
                             merged[key] = val
                     item.tags = merged
                 elif field in ("tagging_status", "tagged_by", "tagged_at"):
                     if was_pending:
                         setattr(item, field, value)
-                # Only update content fields if user hasn't set them (or they're default/unknown)
-                elif field == "type":
-                    if not item.type or item.type == "unknown":
-                        setattr(item, field, value)
-                elif field == "subtype":
-                    if not item.subtype:
-                        setattr(item, field, value)
-                elif field == "primary_color":
-                    if not item.primary_color or item.primary_color == "unknown":
-                        setattr(item, field, value)
-                else:
-                    # For other fields (colors, pattern, material, style, etc.), only set if not already set
-                    current_value = getattr(item, field, None)
-                    if (
-                        current_value is None
-                        or current_value == []
-                        or current_value == ""
-                        or current_value == {}
-                    ):
-                        setattr(item, field, value)
+                elif (
+                    field == "subtype"
+                    and replace
+                    and item.type != type_before
+                    and "subtype" not in kept
+                ):
+                    item.subtype = None if value in _UNSET_LABEL else value
+                elif (
+                    field == "primary_color"
+                    and replace
+                    and "colors" in kept
+                    and value not in (item.colors or [])
+                ):
+                    continue
+                elif field == "subtype" and item.type != ai_fields["type"]:
+                    # A subtype only fits the type it was seen as ("crew-neck" on a T-shirt the
+                    # person has since made a blouse).
+                    continue
+                # Content fields: fill what is empty, or replace the AI's own earlier answer
+                # (see _ai_may_set); a value a person set is never touched.
+                elif _ai_may_set(
+                    field, getattr(item, field, None), value, replace=replace, kept=kept
+                ):
+                    setattr(item, field, value)
+
+            # The primary colour must stay in the list when the AI replaced the rest of it,
+            # including when the list ends up empty.
+            if (
+                replace
+                and "colors" not in kept
+                and item.primary_color not in _UNSET_LABEL
+                and item.primary_color not in (item.colors or [])
+            ):
+                item.colors = [item.primary_color, *(item.colors or [])]
 
             # The guards above may have kept a user's column value while the
             # AI's went into tags; mirror the columns back so the JSONB and the
@@ -356,13 +447,12 @@ async def tag_item_image(ctx: dict, item_id: str, image_path: str) -> dict[str, 
         await clear_ai_started_at(ctx, item_id)
         raise
     except Exception as e:
-        error_msg = str(e)
-        logger.exception(f"Error tagging item {item_id}: {error_msg}")
+        logger.exception(f"Error tagging item {item_id}: {e}")
         # Returning normally here made max_tries dead: arq books a returned value
         # as success. arq only reschedules on Retry, so a plain re-raise would
         # surface the failure but still never retry.
         if _is_final_attempt(ctx) or repeats_identically(e):
-            await update_item_status_to_error(ctx, item_id, error_msg)
+            await update_item_status_to_error(ctx, item_id, analysis_failure(e, Path(image_path)))
             raise
         await clear_ai_started_at(ctx, item_id)
         raise Retry(defer=retry_delay_seconds(ctx)) from e

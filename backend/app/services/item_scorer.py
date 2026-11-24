@@ -77,9 +77,11 @@ TEMP_RANGE_MIN_SWING = 8.0
 REMOVABLE_LAYER_HOT_FLOOR = 0.6
 
 REMOVABLE_LAYER_TYPES = {"jacket", "coat", "blazer", "hoodie", "cardigan", "vest"}
-RAIN_LAYER_TYPES = {"jacket", "coat", "hoodie"}
+RAIN_LAYER_TYPES = {"jacket", "coat", "hoodie", "poncho"}
 RAIN_LIKELY_CHANCE = 50
-WARM_LAYER_TYPES = REMOVABLE_LAYER_TYPES | {"sweater"}
+WARM_LAYER_TYPES = REMOVABLE_LAYER_TYPES | {"sweater", "sweatshirt"}
+COLD_EXPOSED_TYPES = {"shorts", "tank-top", "sandals", "camisole"}
+HOT_PENALTY_TYPES = WARM_LAYER_TYPES | {"boots"}
 HEAVY_LAYER_TYPES = {"coat"}
 HEAVY_LAYER_MATERIALS = {"wool", "fleece", "down", "shearling"}
 HEAVY_LAYER_SUBTYPES = {
@@ -136,7 +138,7 @@ def _temp_bucket_score(
             return 1.0
         elif "winter" in seasons:
             return 1.0
-        elif item_type in ("shorts", "tank-top", "sandals"):
+        elif item_type in COLD_EXPOSED_TYPES:
             return 0.05
         else:
             return 0.7
@@ -145,7 +147,7 @@ def _temp_bucket_score(
             return 0.05
         if material in ("cotton", "linen", "silk") or "summer" in seasons:
             return 1.0
-        elif item_type in WARM_LAYER_TYPES or item_type == "boots":
+        elif item_type in HOT_PENALTY_TYPES:
             return 0.05
         else:
             return 0.8
@@ -352,18 +354,23 @@ def _preference_score(
     learned: dict | None,
 ) -> float:
     score = 1.0
-    color = (item.primary_color or "").lower()
+    # Every colour on the item counts, not just the primary: a navy jumper with white
+    # stripes should react to "avoid white" and to "love navy" alike.
+    colors = {c.lower() for c in [item.primary_color, *(item.colors or [])] if c}
 
     if preferences:
-        fav_colors = [c.lower() for c in (preferences.color_favorites or [])]
-        avoid_colors = [c.lower() for c in (preferences.color_avoid or [])]
+        fav_colors = {c.lower() for c in (preferences.color_favorites or [])}
+        avoid_colors = {c.lower() for c in (preferences.color_avoid or [])}
 
-        if color and color in fav_colors:
+        if colors & fav_colors:
             score += 0.1
-        if color and color in avoid_colors:
+        if colors & avoid_colors:
             score -= 0.3
 
+        # Fork: colour-season nudge keys off the primary colour only, as before upstream
+        # started scoring every colour on the item.
         season_palette = get_palette(preferences.color_season)
+        color = (item.primary_color or "").lower()
         if season_palette and color:
             # Smaller weight than explicit favorites/avoid, since this is a
             # general seasonal guideline rather than the user's own stated
@@ -374,12 +381,12 @@ def _preference_score(
                 score -= 0.1
 
     if learned:
-        learned_favs = [c.lower() for c in learned.get("learned_favorite_colors", [])]
-        learned_avoids = [c.lower() for c in learned.get("learned_avoid_colors", [])]
+        learned_favs = {c.lower() for c in learned.get("learned_favorite_colors", [])}
+        learned_avoids = {c.lower() for c in learned.get("learned_avoid_colors", [])}
 
-        if color and color in learned_favs:
+        if colors & learned_favs:
             score += 0.05
-        if color and color in learned_avoids:
+        if colors & learned_avoids:
             score -= 0.15
 
         learned_styles = [s.lower() for s in learned.get("learned_preferred_styles", [])]

@@ -3,9 +3,20 @@
 import { useState } from 'react';
 import { useQueries, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
-import { api, API_BASE_PATH, getAccessToken, ApiError, NetworkError } from '@/lib/api';
+import {
+  api,
+  API_BASE_PATH,
+  getAccessToken,
+  ApiError,
+  type ApiErrorParams,
+  NetworkError,
+  apiErrorFromBody,
+  networkErrorNow,
+} from '@/lib/api';
+import { networkErrorCode } from '@/lib/errors';
 import { useSetTokenIfAvailable, applySessionToken } from '@/lib/hooks/use-session-token';
 import { Item, ItemListResponse, ItemFilter, WashHistoryEntry, ItemImage, TaggingProgress } from '@/lib/types';
+import { applyItemEdits, type ItemEdits } from '@/lib/tag-edits';
 import { chunkArray } from '@/lib/utils';
 import { enqueueFiles } from '@/lib/upload-queue';
 import { startDrain } from '@/lib/upload-manager';
@@ -17,6 +28,7 @@ import {
 } from '@/lib/hooks/cache-invalidation';
 import { processingPollInterval } from '@/lib/hooks/query-timing';
 import { DEFAULT_PAGE_SIZE } from '@/lib/pagination';
+import { BulkBatchResponse, drainCursor, mergeBulkBatches } from '@/lib/bulk-batches';
 import { fetchBulkUploadLimit } from '@/lib/hooks/use-features';
 
 // Capped at the server's max_bulk_upload_count from /health/features, because a
@@ -31,15 +43,10 @@ function itemListQuery(filters: ItemFilter, page: number, pageSize: number) {
         page: String(page),
         page_size: String(pageSize),
       };
-      if (filters.type) params.type = filters.type;
-      if (filters.colors?.length) params.colors = filters.colors.join(',');
-      if (filters.search) params.search = filters.search;
-      if (filters.favorite !== undefined) params.favorite = String(filters.favorite);
-      if (filters.needs_wash !== undefined) params.needs_wash = String(filters.needs_wash);
-      if (filters.is_archived !== undefined) params.is_archived = String(filters.is_archived);
-      if (filters.sort_by) params.sort_by = filters.sort_by;
-      if (filters.sort_order) params.sort_order = filters.sort_order;
-      if (filters.ids) params.ids = filters.ids;
+      for (const [key, value] of Object.entries(filters)) {
+        if (value === undefined || value === null || value === '' || (Array.isArray(value) && !value.length)) continue;
+        params[key] = Array.isArray(value) ? value.join(',') : String(value);
+      }
 
       return api.get<ItemListResponse>('/items', { params });
     },
@@ -144,19 +151,12 @@ export function useCreateItem() {
           headers,
         });
       } catch {
-        if (!navigator.onLine) {
-          throw new NetworkError('You appear to be offline. Please check your connection.');
-        }
-        throw new NetworkError('Unable to connect to server. Please try again.');
+        throw networkErrorNow();
       }
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        throw new ApiError(
-          data.detail || 'Failed to create item',
-          response.status,
-          data
-        );
+        throw apiErrorFromBody(response.status, data);
       }
 
       return response.json();
@@ -172,7 +172,8 @@ export function useUpdateItem() {
   const { data: session } = useSession();
 
   return useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<Item> }) => {
+    meta: { toastsOwnErrors: true },
+    mutationFn: async ({ id, data }: { id: string; data: ItemEdits }) => {
       applySessionToken(session);
       return api.patch<Item>(`/items/${id}`, data);
     },
@@ -187,12 +188,12 @@ export function useUpdateItem() {
         if (!old) return old;
         return {
           ...old,
-          items: old.items.map((item) => (item.id === id ? { ...item, ...data } : item)),
+          items: old.items.map((item) => (item.id === id ? applyItemEdits(item, data) : item)),
         };
       });
 
       if (previousItemData) {
-        queryClient.setQueryData<Item>(queryKeys.item(id), { ...previousItemData, ...data });
+        queryClient.setQueryData<Item>(queryKeys.item(id), applyItemEdits(previousItemData, data));
       }
 
       return { previousListData, previousItemData };
@@ -275,11 +276,13 @@ export function useReplaceItemImage() {
         body: formData,
         credentials: 'include',
         headers,
+      }).catch(() => {
+        throw networkErrorNow();
       });
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        throw new ApiError(data.detail || 'Failed to replace image', response.status, data);
+        throw apiErrorFromBody(response.status, data);
       }
 
       return response.json() as Promise<Item>;
@@ -478,11 +481,13 @@ export function useAddItemImage() {
         body: formData,
         credentials: 'include',
         headers,
+      }).catch(() => {
+        throw networkErrorNow();
       });
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        throw new ApiError(data.detail || 'Failed to upload image', response.status, data);
+        throw apiErrorFromBody(response.status, data);
       }
 
       return response.json() as Promise<ItemImage>;
@@ -571,10 +576,13 @@ export function useReanalyzeItem() {
   const { data: session } = useSession();
 
   return useMutation({
-    mutationFn: async (id: string) => {
+    // A plain id keeps the AI's answers for anything already set; with replace, the AI redoes its
+    // own earlier answers and only what a person edited is kept.
+    mutationFn: async (target: string | { id: string; replace?: boolean }) => {
+      const { id, replace } = typeof target === 'string' ? { id: target, replace: false } : target;
       applySessionToken(session);
       return api.post<{ job_id?: string; status: string; retry_after_seconds?: number }>(
-        `/items/${id}/analyze`
+        `/items/${id}/analyze${replace ? '?replace=true' : ''}`
       );
     },
     onSuccess: () => {
@@ -605,11 +613,18 @@ export type BulkUploadErrorCode =
   | 'invalid_image'
   | 'processing_failed';
 
+// Set client-side when a whole request failed, so the dialog can translate it by code.
+export interface BulkUploadFailure {
+  code: string | null;
+  params?: ApiErrorParams;
+}
+
 export interface BulkUploadResult {
   filename: string;
   success: boolean;
   item?: Item;
   error?: string;
+  failure?: BulkUploadFailure;
   error_code?: BulkUploadErrorCode | null;
   duplicate?: boolean;
   existing_item_id?: string;
@@ -627,46 +642,21 @@ export interface BulkDeleteResponse extends BulkBatchResponse {
   failed: number;
 }
 
+export type BulkItemFilters = Omit<ItemFilter, 'sort_by' | 'sort_order' | 'ids'>;
+
 export interface BulkOperationParams {
   // Either provide explicit item_ids, or use select_all with excluded_ids
   item_ids?: string[];
   select_all?: boolean;
   excluded_ids?: string[];
   // Filters to apply when using select_all (to match the current view)
-  filters?: {
-    type?: string;
-    search?: string;
-    needs_wash?: boolean;
-    favorite?: boolean;
-    is_archived?: boolean;
-  };
+  filters?: BulkItemFilters;
 }
 
-interface BulkBatchResponse {
-  errors: string[];
-  next_cursor?: string | null;
-  has_more?: boolean;
+function limitParam(params: Record<string, unknown>): number | null {
+  const { limit } = params;
+  return typeof limit === 'number' && Number.isFinite(limit) ? limit : null;
 }
-
-// The server caps how many items one bulk request touches. An explicit id list
-// is ours to keep under the cap, but a select_all is only filters here, so the
-// server walks it and hands back a cursor for the next batch.
-const MAX_BULK_BATCHES = 200;
-
-function mergeBulkBatches<T extends BulkBatchResponse>(
-  acc: T,
-  batch: T,
-  sumKeys: (keyof T)[]
-): T {
-  const merged = { ...acc, ...batch } as T;
-  for (const key of sumKeys) {
-    merged[key] = ((acc[key] as number) + (batch[key] as number)) as T[keyof T];
-  }
-  merged.errors = [...acc.errors, ...batch.errors];
-  return merged;
-}
-
-const BULK_ACTION_LIMIT_ERROR = /^Maximum (\d+) items per bulk action$/;
 
 // The server's max_bulk_action_count is admin-tunable on a self-hosted install
 // and is not exposed to the client, so it is learned from the first rejection
@@ -674,9 +664,8 @@ const BULK_ACTION_LIMIT_ERROR = /^Maximum (\d+) items per bulk action$/;
 let learnedBulkActionLimit: number | null = null;
 
 function bulkActionLimitFrom(error: unknown): number | null {
-  if (!(error instanceof ApiError) || error.status !== 400) return null;
-  const match = error.message.match(BULK_ACTION_LIMIT_ERROR);
-  return match ? Number(match[1]) : null;
+  if (!(error instanceof ApiError) || error.code !== 'BULK_ACTION_LIMIT_EXCEEDED') return null;
+  return limitParam(error.params);
 }
 
 async function drainIdList<T extends BulkBatchResponse>(
@@ -700,22 +689,6 @@ async function drainIdList<T extends BulkBatchResponse>(
   }
 
   return results.reduce((acc, result) => mergeBulkBatches(acc, result, sumKeys));
-}
-
-async function drainCursor<T extends BulkBatchResponse>(
-  path: string,
-  params: BulkOperationParams,
-  sumKeys: (keyof T)[]
-): Promise<T> {
-  let batch = await api.post<T>(path, params);
-  let merged = batch;
-
-  for (let i = 0; batch.has_more && batch.next_cursor && i < MAX_BULK_BATCHES; i++) {
-    batch = await api.post<T>(path, { ...params, after_id: batch.next_cursor });
-    merged = mergeBulkBatches(merged, batch, sumKeys);
-  }
-
-  return merged;
 }
 
 export async function drainBulkAction<T extends BulkBatchResponse>(
@@ -1061,31 +1034,21 @@ function uploadBulkItemsChunk(
           const response = JSON.parse(xhr.responseText) as BulkUploadResponse;
           resolve(response);
         } catch {
-          reject(new ApiError('Invalid response from server', xhr.status, {}));
+          reject(apiErrorFromBody(xhr.status, {}));
         }
       } else {
-        let errorMessage = 'Failed to upload items';
+        let errorData: unknown = {};
         try {
-          const errorData = JSON.parse(xhr.responseText);
-          errorMessage = errorData.detail || errorMessage;
-          reject(new ApiError(errorMessage, xhr.status, errorData));
+          errorData = JSON.parse(xhr.responseText);
         } catch {
-          reject(new ApiError(errorMessage, xhr.status, {}));
+          errorData = {};
         }
+        reject(apiErrorFromBody(xhr.status, errorData));
       }
     });
 
-    xhr.addEventListener('error', () => {
-      if (!navigator.onLine) {
-        reject(new NetworkError('You appear to be offline. Please check your connection.'));
-      } else {
-        reject(new NetworkError('Unable to connect to server. Please try again.'));
-      }
-    });
-
-    xhr.addEventListener('abort', () => {
-      reject(new NetworkError('Upload was cancelled.'));
-    });
+    xhr.addEventListener('error', () => reject(networkErrorNow()));
+    xhr.addEventListener('abort', () => reject(new NetworkError('unreachable')));
 
     xhr.open('POST', `${API_BASE_PATH}/items/bulk`);
     xhr.withCredentials = true;
@@ -1096,14 +1059,12 @@ function uploadBulkItemsChunk(
   });
 }
 
-// The backend's wording is matched verbatim; it is the fallback when
-// /health/features does not report the limit.
-const BULK_LIMIT_ERROR = /^Maximum (\d+) images per bulk upload$/;
-
-export function bulkUploadLimitFromDetail(detail: unknown): number | null {
-  if (typeof detail !== 'string') return null;
-  const match = detail.match(BULK_LIMIT_ERROR);
-  return match ? Number(match[1]) : null;
+// The fallback when /health/features does not report the limit.
+export function bulkUploadLimitFromBody(body: unknown): number | null {
+  if (!body || typeof body !== 'object') return null;
+  const { error_code: code, params } = body as { error_code?: unknown; params?: unknown };
+  if (code !== 'BULK_LIMIT_EXCEEDED' || !params || typeof params !== 'object') return null;
+  return limitParam(params as Record<string, unknown>);
 }
 
 // Same server-side cap upload-manager.ts's durable path works around: a
@@ -1121,8 +1082,8 @@ export async function uploadFilesWithinServerLimit(
     return await uploadBulkItemsChunk(files, skipAi, token, onProgress);
   } catch (error) {
     const limit =
-      error instanceof ApiError && error.status === 400
-        ? bulkUploadLimitFromDetail(error.message)
+      error instanceof ApiError && error.code === 'BULK_LIMIT_EXCEEDED'
+        ? limitParam(error.params)
         : null;
     if (limit && limit > 0 && limit < files.length) {
       const responses: BulkUploadResponse[] = [];
@@ -1206,11 +1167,14 @@ export function deriveQueueSummary(progress?: TaggingProgress): QueueSummary {
   };
 }
 
+function failureOf(error: unknown): BulkUploadFailure {
+  if (error instanceof ApiError) return { code: error.code, params: error.params };
+  if (error instanceof NetworkError) return { code: networkErrorCode(error.kind) };
+  return { code: null };
+}
+
 function failedChunkResponse(files: File[], error: unknown): BulkUploadResponse {
-  const message =
-    error instanceof ApiError || error instanceof NetworkError
-      ? error.message
-      : 'Failed to upload items';
+  const failure = failureOf(error);
   return {
     total: files.length,
     successful: 0,
@@ -1218,7 +1182,7 @@ function failedChunkResponse(files: File[], error: unknown): BulkUploadResponse 
     results: files.map((file) => ({
       filename: file.name,
       success: false,
-      error: message,
+      failure,
     })),
   };
 }

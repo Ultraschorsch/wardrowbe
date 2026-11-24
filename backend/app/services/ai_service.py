@@ -13,10 +13,16 @@ from PIL import Image, ImageOps
 from pydantic import BaseModel
 
 from app.config import get_settings
+from app.services.garment_detector import DETECTION_EXAMPLE, DetectedGarment, parse_detection
+from app.utils.errors import Coded
 from app.utils.garment_vocabulary import (
     COLORS,
+    FITS,
     FORMALITY,
     MATERIALS,
+    PATTERNS,
+    SEASONS,
+    STYLES,
     TYPES,
     normalize_color,
     render_tagging_prompt,
@@ -29,8 +35,12 @@ logger = logging.getLogger(__name__)
 AI_RETRY_MAX_BACKOFF_S = 30
 
 
-class _AIProviderResponseError(RuntimeError):
-    pass
+class _AIProviderResponseError(Coded, RuntimeError):
+    code = "AI_PROVIDER_ERROR"
+
+
+class AIUnusableResponseError(Coded, RuntimeError):
+    code = "AI_RESPONSE_UNUSABLE"
 
 
 class TextGenerationResult(BaseModel):
@@ -77,6 +87,9 @@ class ClothingTags(BaseModel):
 
 TAGGING_PROMPT = render_tagging_prompt(load_prompt("clothing_analysis"))
 DESCRIPTION_PROMPT = load_prompt("clothing_description")
+DETECTION_PROMPT = render_tagging_prompt(load_prompt("garment_detection")).replace(
+    "<<EXAMPLE>>", json.dumps(DETECTION_EXAMPLE)
+)
 DESCRIPTION_LANGUAGES = {
     "en": "English",
     "zh-CN": "Simplified Chinese",
@@ -94,36 +107,12 @@ DESCRIPTION_QUOTES = (('"', '"'), ("“", "”"), ("「", "」"), ("『", "』")
 # Valid values for validation
 VALID_TYPES = set(TYPES)
 VALID_COLORS = set(COLORS)
-VALID_PATTERNS = {
-    "solid",
-    "striped",
-    "plaid",
-    "checkered",
-    "floral",
-    "graphic",
-    "geometric",
-    "polka-dot",
-    "camouflage",
-    "animal-print",
-}
+VALID_PATTERNS = set(PATTERNS)
 VALID_MATERIALS = set(MATERIALS)
 VALID_FORMALITY = set(FORMALITY)
-VALID_FIT = {"slim", "regular", "relaxed", "oversized", "tailored", "cropped"}
-VALID_STYLES = {
-    "casual",
-    "classic",
-    "sporty",
-    "minimalist",
-    "bohemian",
-    "preppy",
-    "streetwear",
-    "elegant",
-    "athletic",
-    "vintage",
-    "modern",
-    "rugged",
-}
-VALID_SEASONS = {"spring", "summer", "fall", "winter", "all-season"}
+VALID_FIT = set(FITS)
+VALID_STYLES = set(STYLES)
+VALID_SEASONS = set(SEASONS)
 
 
 def compute_tag_completeness(tags: "ClothingTags") -> float:
@@ -153,6 +142,23 @@ def _message_rejects_logprobs(message: str) -> bool:
 
 def _response_rejects_logprobs(response: httpx.Response) -> bool:
     return response.status_code == 400 and _message_rejects_logprobs(response.text)
+
+
+def _response_body(response: httpx.Response) -> object:
+    try:
+        return response.json()
+    except ValueError as e:
+        raise AIUnusableResponseError("AI endpoint answered with a body that is not JSON") from e
+
+
+def _first_choice(data: object) -> dict:
+    try:
+        choice = data["choices"][0]
+    except (KeyError, IndexError, TypeError) as e:
+        raise AIUnusableResponseError("AI endpoint answered without a completion") from e
+    if not isinstance(choice, dict) or not isinstance(choice.get("message"), dict):
+        raise AIUnusableResponseError("AI endpoint answered with a completion that has no message")
+    return choice
 
 
 def _provider_error_message(data: object) -> str | None:
@@ -487,7 +493,7 @@ class AIService:
                         )
                         response.raise_for_status()
 
-                        data = response.json()
+                        data = _response_body(response)
                         provider_error = _provider_error_message(data)
                         if provider_error is not None:
                             if use_logprobs and _message_rejects_logprobs(provider_error):
@@ -507,7 +513,7 @@ class AIService:
                                 use_reasoning_effort = False
                                 continue
                             raise _AIProviderResponseError(provider_error)
-                        choice = data["choices"][0]
+                        choice = _first_choice(data)
                         content = choice["message"].get("content")
                         logprobs_content = None
                         if use_logprobs:
@@ -666,10 +672,10 @@ class AIService:
                 raise tags_error
             if tags_content:
                 reason = description_error or "empty description reply"
-                raise RuntimeError(
+                raise AIUnusableResponseError(
                     f"AI returned no usable tags and no description: {reason}"
                 ) from description_error
-            raise description_error or RuntimeError("AI returned nothing usable")
+            raise description_error or AIUnusableResponseError("AI returned nothing usable")
 
         return tags
 
@@ -799,6 +805,30 @@ class AIService:
             "notes": parsed.get("notes"),
         }
 
+    async def detect_garments(self, image_path: str | Path) -> list[DetectedGarment]:
+        """Ask the vision model where each garment in the photo is. Writes nothing.
+
+        Returns no garments when the model finds none or answers with something unreadable;
+        raises when no endpoint could be reached at all, so a caller can tell the two apart.
+        """
+        image_base64 = await asyncio.to_thread(self._preprocess_image, image_path)
+        messages = [
+            {"role": "system", "content": DETECTION_PROMPT},
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"},
+                    },
+                ],
+            },
+        ]
+        content, error, _ = await self._call_with_fallback(messages, "garment detection")
+        if content is None:
+            raise error or AIUnusableResponseError("AI returned nothing usable")
+        return parse_detection(content)
+
     async def check_health(self) -> dict:
         """Check health of all configured AI endpoints."""
         endpoints_health = []
@@ -907,7 +937,7 @@ class AIService:
                         )
                         response.raise_for_status()
 
-                        data = response.json()
+                        data = _response_body(response)
                         provider_error = _provider_error_message(data)
                         if provider_error is not None:
                             if use_reasoning_effort and _message_rejects_reasoning_effort(
@@ -920,8 +950,8 @@ class AIService:
                                 use_reasoning_effort = False
                                 continue
                             raise _AIProviderResponseError(provider_error)
+                        choice = _first_choice(data)
                         used_model = data.get("model", endpoint.text_model)
-                        choice = data["choices"][0]
                         message = choice["message"]
                         content = message.get("content")
 
@@ -986,7 +1016,7 @@ class AIService:
         raise RuntimeError("Failed to generate text - no endpoints available")
 
 
-class AIResponseTruncatedError(RuntimeError):
+class AIResponseTruncatedError(Coded, RuntimeError):
     """Raised when a model's response was cut off before it produced any output content.
 
     Reasoning-capable models (e.g. Qwen3, DeepSeek-R1) return their chain-of-thought in a
@@ -1001,9 +1031,12 @@ class AIResponseTruncatedError(RuntimeError):
     budget is cut off again, so the tagging worker fails the job instead of rerunning it.
     """
 
-    def __init__(self, message: str, *, retryable: bool = True):
-        super().__init__(message)
+    code = "AI_RESPONSE_EMPTY"
+
+    def __init__(self, message: str, *, retryable: bool = True, max_tokens: int = 0):
+        super().__init__(message, max_tokens=max_tokens)
         self.retryable = retryable
+        self.max_tokens = max_tokens
 
 
 def repeats_identically(error: BaseException | None) -> bool:
@@ -1053,6 +1086,7 @@ def _empty_response_error(
         f"Try raising AI_MAX_TOKENS (currently {max_tokens}) or disabling extended "
         "thinking/reasoning mode for this model.",
         retryable=finish_reason != "length",
+        max_tokens=max_tokens,
     )
 
 

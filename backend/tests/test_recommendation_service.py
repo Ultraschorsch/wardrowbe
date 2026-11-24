@@ -10,6 +10,7 @@ from app.models.item import ClothingItem, ItemStatus
 from app.models.outfit import Outfit, OutfitItem, OutfitSource, OutfitStatus, TimeOfDay
 from app.models.preference import UserPreference
 from app.models.user import User
+from app.services.ai_service import AIResponseTruncatedError
 from app.services.item_scorer import ScoredItem
 from app.services.recommendation_service import (
     RECOMMENDATION_PROMPT,
@@ -330,24 +331,22 @@ def test_a_cached_suggestion_without_context_does_not_fit():
 
 
 def test_fill_best_partial_prefers_an_option_the_fill_can_complete():
-    coat, jeans, boots, hoodie = uuid4(), uuid4(), uuid4(), uuid4()
-    types = {coat: "coat", jeans: "jeans", boots: "boots", hoodie: "hoodie"}
-    unfillable = ({"headline": "coat"}, [coat, jeans, boots])
-    fillable = ({"headline": "jeans"}, [jeans])
-    outfit_data, item_ids = fill_best_partial(
-        [unfillable, fillable], [hoodie, boots, coat, jeans], types
-    )
-    assert outfit_data["headline"] == "jeans"
-    assert set(item_ids) == {jeans, hoodie, boots}
-    assert outfit_data["_filled_item_ids"] == [str(hoodie), str(boots)]
+    jeans, boots, dress = uuid4(), uuid4(), uuid4()
+    types = {jeans: "jeans", boots: "boots", dress: "dress"}
+    unfillable = ({"headline": "jeans"}, [jeans, boots])
+    fillable = ({"headline": "boots"}, [boots])
+    outfit_data, item_ids = fill_best_partial([unfillable, fillable], [dress, boots, jeans], types)
+    assert outfit_data["headline"] == "boots"
+    assert set(item_ids) == {boots, dress}
+    assert outfit_data["_filled_item_ids"] == [str(dress)]
     assert "_filled_item_ids" not in unfillable[0]
 
 
 def test_fill_best_partial_gives_up_when_no_option_can_be_completed():
-    coat, jeans, boots, hoodie = uuid4(), uuid4(), uuid4(), uuid4()
-    types = {coat: "coat", jeans: "jeans", boots: "boots", hoodie: "hoodie"}
-    outfit_data = {"headline": "coat"}
-    assert fill_best_partial([(outfit_data, [coat, jeans, boots])], [hoodie], types) is None
+    jeans, boots, dress = uuid4(), uuid4(), uuid4()
+    types = {jeans: "jeans", boots: "boots", dress: "dress"}
+    outfit_data = {"headline": "jeans"}
+    assert fill_best_partial([(outfit_data, [jeans, boots])], [dress], types) is None
     assert "_filled_item_ids" not in outfit_data
 
 
@@ -591,6 +590,12 @@ class TestPromptPreRanking:
         assert "pre-ranked" in RECOMMENDATION_PROMPT
 
 
+def _nested(value, depth):
+    for _ in range(depth):
+        value = [value]
+    return value
+
+
 class TestIncludeItems:
     def test_format_mandatory_items_section(self):
         service = RecommendationService.__new__(RecommendationService)
@@ -612,6 +617,135 @@ class TestIncludeItems:
             drop_legwear=False,
         )
         assert set(resolved) == {shirt, pants}
+
+    @pytest.mark.parametrize(
+        "picked",
+        [
+            [10, 12],
+            [[10], [12]],
+            ["[10]", "[12]"],
+            ["10", " 12 "],
+            [[[10]], ["[12]"]],
+            [[10, 12]],
+            "[10, 12]",
+            "[[10], [12]]",
+            '"[10, 12]"',
+            ["[10] shirt | worn 2 days ago | pairs well with: [3]", "[12] pants | size 32"],
+            ["[10] 3/4 sleeve tee", "[12] pants"],
+        ],
+        ids=[
+            "numbers",
+            "nested-lists",
+            "bracketed-strings",
+            "numeric-strings",
+            "mixed",
+            "wrapped-list",
+            "json-string",
+            "json-string-of-lists",
+            "double-encoded",
+            "echoed-lines",
+            "description-starting-with-a-digit",
+        ],
+    )
+    def test_item_numbers_echoed_as_prompt_labels_are_read(self, picked):
+        shirt, pants, other = uuid4(), uuid4(), uuid4()
+        number_map = {10: shirt, 12: pants, 2: other, 3: other, 32: other}
+        resolved = resolve_outfit_items(
+            {"items": picked},
+            number_map,
+            {shirt: "shirt", pants: "pants", other: "sneakers"},
+            None,
+            drop_legwear=False,
+        )
+        assert resolved == [shirt, pants]
+
+    @pytest.mark.parametrize(
+        "junk",
+        [
+            "one",
+            "item 1",
+            None,
+            True,
+            "true",
+            [],
+            "[]",
+            float("inf"),
+            "Infinity",
+            {"id": 1},
+            "[" * 3000 + "1" + "]" * 3000,
+        ],
+        ids=lambda junk: str(junk)[:20],
+    )
+    def test_entries_that_are_not_one_item_number_are_skipped(self, junk):
+        shirt, pants = uuid4(), uuid4()
+        resolved = resolve_outfit_items(
+            {"items": [junk, 2]},
+            {1: shirt, 2: pants},
+            {shirt: "shirt", pants: "pants"},
+            None,
+            drop_legwear=False,
+        )
+        assert resolved == [pants]
+
+    @pytest.mark.parametrize(
+        "items",
+        [
+            None,
+            {"2": "pants"},
+            "1, 2",
+            "the pants from 2 days ago",
+            "shirt | worn 2 days ago | pairs well with: [1], [2]",
+            "[1] navy shirt, [2] jeans",
+            ["[1] navy shirt, [2] jeans"],
+            ["[1] shirt\n[2] jeans"],
+            ["[1][2]"],
+            ["[1], [2]"],
+            ["1, 2"],
+            ["[1] navy shirt", "[2] jeans, [3] sneakers"],
+            [[1, 2], [2, 1]],
+            [[1, 2], [2]],
+            "[[1, 2], [2, 1]]",
+            ["[1, 2]", "[2, 1]"],
+            ["1", "[2, 1]"],
+            [[[1, 2]], [2]],
+        ],
+        ids=str,
+    )
+    def test_items_that_cannot_be_read_pick_nothing(self, items):
+        shirt, pants = uuid4(), uuid4()
+        resolved = resolve_outfit_items(
+            {"items": items},
+            {1: shirt, 2: pants},
+            {shirt: "shirt", pants: "pants"},
+            None,
+            drop_legwear=False,
+        )
+        assert resolved == []
+
+    @pytest.mark.parametrize(
+        "items",
+        [[2], [[2]], [2.0], "[2]", '"[2]"', ["2"], ["[2] pants | blue"], _nested(2, 3000)],
+        ids=[
+            "list",
+            "nested",
+            "float",
+            "json",
+            "double-encoded",
+            "string",
+            "echoed-line",
+            "deeply-nested",
+        ],
+    )
+    def test_a_single_item_answer_is_read(self, items):
+        shirt, pants = uuid4(), uuid4()
+        resolved = resolve_outfit_items(
+            {"items": items},
+            {1: shirt, 2: pants},
+            {shirt: "shirt", pants: "pants"},
+            None,
+            drop_legwear=False,
+        )
+        assert resolved == [pants]
 
     @pytest.mark.asyncio
     async def test_suggest_accepts_include_items(self, client, test_user, auth_headers, db_session):
@@ -770,6 +904,7 @@ class TestHotDayLegwear:
         extras=(),
         single_outfit=False,
         kinds=("tights", "skirt", "t-shirt", "sneakers"),
+        ai_error=None,
     ):
         # Extras come first among the candidates and are numbered last, so that neither
         # candidate order nor prompt order can stand in for the fill ranking.
@@ -811,7 +946,8 @@ class TestHotDayLegwear:
                 content=json.dumps(options[0] if single_outfit else {"outfits": options}),
                 model="m",
                 endpoint="e",
-            )
+            ),
+            side_effect=ai_error,
         )
         self.ai = ai
         weather = _weather(temp=35)
@@ -987,6 +1123,21 @@ class TestHotDayLegwear:
         )
         assert outfits == [{items[1].id, items[2].id, items[3].id}]
         assert self.raw_responses[0]["_filled_item_ids"] == [str(items[2].id)]
+
+    @pytest.mark.asyncio
+    async def test_a_truncated_answer_keeps_its_cause(self, db_session, test_user):
+        with pytest.raises(AIRecommendationError) as caught:
+            await self._hot_day_outfits(
+                db_session,
+                test_user,
+                [[2, 4]],
+                ai_error=AIResponseTruncatedError("cut off", max_tokens=4096),
+            )
+
+        assert (caught.value.code, caught.value.params) == (
+            "AI_RESPONSE_EMPTY",
+            {"max_tokens": 4096},
+        )
 
     # The only piece for the top is a dress, which cannot go over the skirt the AI chose.
     @pytest.mark.asyncio

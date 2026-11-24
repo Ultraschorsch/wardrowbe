@@ -11,6 +11,7 @@ interface Features {
   background_removal: boolean;
   max_upload_size_mb: number;
   max_bulk_upload_count?: number;
+  ai_ui_enabled?: boolean;
 }
 
 // An upload waits on this request before its first chunk, so a server that never answers
@@ -43,9 +44,18 @@ export function useFeatures() {
   return useQuery({ ...featuresQuery, enabled: status !== 'loading' });
 }
 
+// undefined until the features call answers, so a disabled install never flashes AI UI.
+// A first call that fails, or a backend too old to send the flag, counts as on, so a
+// default install never loses AI UI to a features outage; a failed refetch keeps the
+// last answer.
+export function useAiUiEnabled(): boolean | undefined {
+  const { data, isError } = useFeatures();
+  if (data) return data.ai_ui_enabled !== false;
+  return isError ? true : undefined;
+}
+
 // null means "unknown": callers fall back to learning the limit from the
-// server's "Maximum N images per bulk upload" 400, so a failed features
-// request must not block an upload.
+// server's BULK_LIMIT_EXCEEDED 400, so a failed features request must not block an upload.
 export async function fetchBulkUploadLimit(queryClient: QueryClient): Promise<number | null> {
   try {
     const features = await queryClient.fetchQuery({

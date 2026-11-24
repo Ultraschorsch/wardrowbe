@@ -92,8 +92,9 @@ class TestWeatherScore:
         item = _item(type="coat")
         assert _weather_score(item, _weather(temp=5), None) == 1.0
 
-    def test_cold_shorts_scores_low(self):
-        item = _item(type="shorts")
+    @pytest.mark.parametrize("item_type", ["shorts", "tank-top", "sandals", "camisole"])
+    def test_cold_exposed_type_scores_low(self, item_type):
+        item = _item(type=item_type)
         assert _weather_score(item, _weather(temp=5), None) == 0.05
 
     def test_hot_cotton_scores_high(self):
@@ -119,8 +120,11 @@ class TestWeatherScore:
         item = _item(type="shirt", material="wool")
         assert _weather_score(item, _weather(temp=5), None) == 1.0
 
-    def test_hot_sweater_scores_low(self):
-        item = _item(type="sweater")
+    @pytest.mark.parametrize(
+        ("item_type", "material"), [("sweater", None), ("sweatshirt", "fleece"), ("boots", None)]
+    )
+    def test_hot_heavy_type_scores_low(self, item_type, material):
+        item = _item(type=item_type, material=material)
         assert _weather_score(item, _weather(temp=30), None) == 0.05
 
     def test_cold_regular_shirt(self):
@@ -215,8 +219,13 @@ class TestWeatherScoreHeavyLayers:
         weather = _weather(temp=12, window_min=5, window_max=30)
         return _weather_score(_item(**kwargs), weather, None)
 
-    def test_puffer_with_unknown_material_is_heavy(self):
-        assert self._swing(type="jacket", subtype="puffer") == pytest.approx(0.525)
+    @pytest.mark.parametrize("item_type", ["jacket", "coat", "vest"])
+    def test_puffer_with_unknown_material_is_heavy(self, item_type):
+        assert self._swing(type=item_type, subtype="puffer") == pytest.approx(0.525)
+
+    @pytest.mark.parametrize("material", ["down", "shearling", "wool", "fleece"])
+    def test_heavy_material_jacket_is_heavy(self, material):
+        assert self._swing(type="jacket", material=material) == pytest.approx(0.525)
 
     def test_parka_with_light_shell_material_is_heavy(self):
         assert self._swing(type="jacket", subtype="parka", material="nylon") == pytest.approx(0.525)
@@ -224,8 +233,12 @@ class TestWeatherScoreHeavyLayers:
     def test_coat_with_unknown_material_is_heavy(self):
         assert self._swing(type="coat") == pytest.approx(0.525)
 
-    def test_anorak_with_unknown_material_gets_removable_floor(self):
-        assert self._swing(type="jacket", subtype="anorak") == pytest.approx(0.80)
+    @pytest.mark.parametrize(
+        ("item_type", "subtype"),
+        [("jacket", "anorak"), ("vest", "waistcoat"), ("vest", "sweater-vest")],
+    )
+    def test_light_subtype_with_unknown_material_gets_removable_floor(self, item_type, subtype):
+        assert self._swing(type=item_type, subtype=subtype) == pytest.approx(0.80)
 
     def test_jacket_with_unknown_material_and_subtype_gets_removable_floor(self):
         assert self._swing(type="jacket") == pytest.approx(0.80)
@@ -280,6 +293,13 @@ class TestWeatherScoreRealItemTypes:
             assert _weather_score(item, _weather(temp=30, precipitation=60), None) == pytest.approx(
                 0.15
             )
+
+    def test_rain_boosts_a_poncho(self):
+        item = _item(type="poncho")
+        dry = _weather_score(item, _weather(temp=30), None)
+        wet = _weather_score(item, _weather(temp=30, precipitation=60), None)
+        assert dry < 1.0
+        assert wet > dry
 
     def test_blazer_gets_no_rain_boost(self):
         item = _item(type="blazer")
@@ -413,6 +433,31 @@ class TestPreferenceScore:
         item = _item(primary_color="blue")
         learned = {"learned_favorite_colors": ["blue"]}
         assert _preference_score(item, None, learned) == 1.05
+
+    def test_secondary_color_counts_as_a_favourite(self):
+        item = _item(primary_color="white", colors=["white", "navy"])
+        prefs = _prefs(color_favorites=["navy"])
+        assert _preference_score(item, prefs, None) == 1.1
+
+    def test_secondary_color_counts_as_an_avoided_colour(self):
+        item = _item(primary_color="navy", colors=["navy", "orange"])
+        prefs = _prefs(color_avoid=["orange"])
+        assert _preference_score(item, prefs, None) == 0.7
+
+    def test_learned_preferences_look_at_every_colour(self):
+        item = _item(primary_color="white", colors=["white", "navy"])
+        assert _preference_score(item, None, {"learned_favorite_colors": ["navy"]}) == 1.05
+        assert _preference_score(item, None, {"learned_avoid_colors": ["navy"]}) == 0.85
+
+    def test_several_matching_colours_count_once(self):
+        item = _item(primary_color="navy", colors=["navy", "blue"])
+        prefs = _prefs(color_favorites=["navy", "blue"])
+        assert _preference_score(item, prefs, None) == 1.1
+
+    def test_colour_names_match_regardless_of_case(self):
+        item = _item(primary_color="Navy", colors=["White"])
+        prefs = _prefs(color_favorites=["navy"], color_avoid=["WHITE"])
+        assert _preference_score(item, prefs, None) == pytest.approx(0.8)
 
     def test_learned_style_match(self):
         item = _item(style=["casual", "minimal"])

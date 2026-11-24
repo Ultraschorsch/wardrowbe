@@ -1,6 +1,7 @@
 import asyncio
 from datetime import UTC, date, datetime, timedelta
 from io import BytesIO
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 from uuid import UUID, uuid4
 
@@ -14,7 +15,7 @@ from app.models.item import ClothingItem, ItemHistory, ItemStatus
 from app.models.user import User
 from app.schemas.item import ItemCreate, ItemFilter
 from app.services.item_service import ItemService
-from app.workers.tagging import update_item_status_to_error
+from app.workers.tagging import analysis_failure, update_item_status_to_error
 
 
 def _make_test_image_bytes() -> bytes:
@@ -113,6 +114,26 @@ class TestItemList:
         data = response.json()
         assert len(data["items"]) == 2
         assert all(item["type"] == "shirt" for item in data["items"])
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("param", ["status", "tagging_status"])
+    async def test_list_items_ignores_an_empty_status_filter(
+        self, client: AsyncClient, test_user, auth_headers, db_session: AsyncSession, param
+    ):
+        db_session.add(
+            ClothingItem(
+                user_id=test_user.id,
+                type="shirt",
+                image_path=f"test/{uuid4()}.jpg",
+                status=ItemStatus.ready,
+            )
+        )
+        await db_session.commit()
+
+        response = await client.get("/api/v1/items", params={param: ""}, headers=auth_headers)
+
+        assert response.status_code == 200
+        assert response.json()["total"] == 1
 
 
 class TestItemCRUD:
@@ -1581,7 +1602,9 @@ class TestRetryCooldownEndpoint:
                 async_engine, class_=AsyncSession, expire_on_commit=False
             )
         }
-        await update_item_status_to_error(worker_ctx, str(item_id), "boom")
+        await update_item_status_to_error(
+            worker_ctx, str(item_id), analysis_failure(ValueError("boom"), Path("t/x.jpg"))
+        )
         # update_item_status_to_error writes through a separate session, so
         # db_session's identity map still holds the pre-failure `item` object
         # with its old (non-expired) status - expire it or the endpoint's

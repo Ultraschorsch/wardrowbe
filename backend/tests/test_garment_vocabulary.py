@@ -8,14 +8,20 @@ from app.schemas.item import DEFAULT_WASH_INTERVALS
 from app.services.ai_service import (
     TAGGING_PROMPT,
     VALID_COLORS,
+    VALID_FIT,
     VALID_FORMALITY,
     VALID_MATERIALS,
+    VALID_PATTERNS,
+    VALID_SEASONS,
+    VALID_STYLES,
     VALID_TYPES,
 )
 from app.services.item_scorer import (
+    COLD_EXPOSED_TYPES,
     FORMALITY_ORDER,
     HEAVY_LAYER_MATERIALS,
     HEAVY_LAYER_TYPES,
+    HOT_PENALTY_TYPES,
     OCCASION_FORMALITY,
     RAIN_LAYER_TYPES,
     WARM_LAYER_TYPES,
@@ -24,11 +30,16 @@ from app.services.pairing_service import PAIRING_OCCASION
 from app.utils.garment_vocabulary import (
     COLOR_ALIASES,
     COLORS,
+    FITS,
     FORMALITY,
     ITEM_ROLE,
     MATERIALS,
     OCCASIONS,
+    PATTERNS,
     ROLES,
+    SEASONS,
+    STYLES,
+    SUBTYPES,
     TYPES,
     canonical_color,
     canonical_colors,
@@ -64,9 +75,67 @@ def test_every_type_has_a_known_role_and_a_positive_wash_interval():
 
 def test_prompt_template_tokens_are_all_rendered():
     template = load_prompt("clothing_analysis")
-    for token in ("<<TYPES>>", "<<MATERIALS>>", "<<FORMALITY>>", "<<COLORS>>"):
+    for token in (
+        "<<TYPES>>",
+        "<<SUBTYPES>>",
+        "<<MATERIALS>>",
+        "<<FORMALITY>>",
+        "<<COLORS>>",
+        "<<PATTERNS>>",
+        "<<STYLES>>",
+        "<<SEASONS>>",
+        "<<FITS>>",
+    ):
         assert token in template
     assert "<<" not in render_tagging_prompt(template)
+
+
+def test_prompt_suggests_exactly_the_vocabulary_subtypes():
+    match = re.search(r"^SUBTYPE \([^)]*\):[^\n]*\n((?:- .+\n)+)", TAGGING_PROMPT, re.MULTILINE)
+    assert match, "SUBTYPE examples not found in clothing_analysis prompt"
+    rendered = {}
+    for line in match.group(1).splitlines():
+        type_, subtypes = line.removeprefix("- ").split(" → ")
+        rendered[type_] = tuple(s.strip() for s in subtypes.split(","))
+    assert rendered == SUBTYPES
+    assert list(rendered) == [t for t in TYPES if t in SUBTYPES]
+
+
+def test_subtypes_belong_to_real_types():
+    assert set(SUBTYPES) <= set(TYPES)
+    for type_, subtypes in SUBTYPES.items():
+        assert subtypes, type_
+        assert len(set(subtypes)) == len(subtypes), type_
+        assert all(s == s.strip().lower() for s in subtypes), type_
+
+
+# A subtype example that names a type steers the tagger to file that garment under the wrong
+# type. Dress socks are the one homonym.
+def test_no_subtype_names_a_type():
+    clashes = [
+        f"{type_} → {subtype}"
+        for type_, subtypes in SUBTYPES.items()
+        for subtype in subtypes
+        if subtype in TYPES
+    ]
+    assert clashes == ["socks → dress"]
+
+
+@pytest.mark.parametrize(
+    ("heading", "values"),
+    [("PATTERN", PATTERNS), ("STYLE", STYLES), ("SEASON", SEASONS), ("FIT", FITS)],
+)
+def test_tag_lists_in_the_prompt_come_from_the_vocabulary(heading, values):
+    assert _prompt_options(heading) == set(values)
+    assert len(set(values)) == len(values)
+    assert all(value == value.strip().lower() for value in values)
+
+
+def test_validators_use_the_vocabulary_lists():
+    assert VALID_PATTERNS == set(PATTERNS)
+    assert VALID_STYLES == set(STYLES)
+    assert VALID_SEASONS == set(SEASONS)
+    assert VALID_FIT == set(FITS)
 
 
 def test_type_lists_agree():
@@ -74,6 +143,25 @@ def test_type_lists_agree():
     assert prompt_types == VALID_TYPES
     assert prompt_types == set(ITEM_ROLE)
     assert prompt_types == set(DEFAULT_WASH_INTERVALS)
+
+
+@pytest.mark.parametrize(
+    ("item_type", "role"),
+    [
+        ("leggings", "bottom"),
+        ("camisole", "base_top"),
+        ("bodysuit", "base_top"),
+        ("sweatshirt", "base_top"),
+        ("heels", "footwear"),
+        ("flats", "footwear"),
+        ("overalls", "bottom"),
+        ("poncho", "outer_layer"),
+        ("watch", "accessory"),
+    ],
+)
+def test_type_has_its_outfit_role(item_type, role):
+    assert ITEM_ROLE.get(item_type) == role
+    assert item_type in VALID_TYPES
 
 
 def test_types_for_role_is_derived_from_the_vocabulary():
@@ -120,7 +208,13 @@ def test_scorer_formality_scale_is_the_validated_vocabulary():
 
 
 def test_scorer_layer_types_are_real_types():
-    scorer_types = RAIN_LAYER_TYPES | WARM_LAYER_TYPES | HEAVY_LAYER_TYPES
+    scorer_types = (
+        RAIN_LAYER_TYPES
+        | WARM_LAYER_TYPES
+        | HEAVY_LAYER_TYPES
+        | COLD_EXPOSED_TYPES
+        | HOT_PENALTY_TYPES
+    )
     assert scorer_types <= VALID_TYPES
 
 

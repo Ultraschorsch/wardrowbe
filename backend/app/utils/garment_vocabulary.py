@@ -13,12 +13,20 @@ ITEM_ROLE: dict[str, str] = {entry["value"]: entry["role"] for entry in _DATA["t
 WORN_ALONE_TYPES: frozenset[str] = frozenset(
     entry["value"] for entry in _DATA["types"] if entry.get("worn_alone")
 )
+# Suggestions rather than a closed set: subtype is free text, and the model may answer outside it.
+SUBTYPES: dict[str, tuple[str, ...]] = {
+    entry["value"]: tuple(entry["subtypes"]) for entry in _DATA["types"] if "subtypes" in entry
+}
 DEFAULT_WASH_INTERVALS: dict[str, int] = {
     entry["value"]: entry["wash_interval"] for entry in _DATA["types"]
 }
 MATERIALS: tuple[str, ...] = tuple(_DATA["materials"])
 # Ordered from least to most formal; the scorer measures distance along this scale.
 FORMALITY: tuple[str, ...] = tuple(_DATA["formality"])
+PATTERNS: tuple[str, ...] = tuple(_DATA["patterns"])
+STYLES: tuple[str, ...] = tuple(_DATA["styles"])
+SEASONS: tuple[str, ...] = tuple(_DATA["seasons"])
+FITS: tuple[str, ...] = tuple(_DATA["fits"])
 OCCASIONS: tuple[str, ...] = tuple(entry["value"] for entry in _DATA["occasions"])
 OCCASION_FORMALITY: dict[str, tuple[str, ...]] = {
     entry["value"]: tuple(entry["formality"]) for entry in _DATA["occasions"]
@@ -79,9 +87,17 @@ def types_for_role(role: str) -> list[str]:
 def render_tagging_prompt(template: str) -> str:
     return (
         template.replace("<<TYPES>>", ", ".join(TYPES))
+        .replace(
+            "<<SUBTYPES>>",
+            "\n".join(f"- {type_} → {', '.join(subtypes)}" for type_, subtypes in SUBTYPES.items()),
+        )
         .replace("<<MATERIALS>>", ", ".join(MATERIALS))
         .replace("<<FORMALITY>>", ", ".join(FORMALITY))
         .replace("<<COLORS>>", ", ".join(COLORS))
+        .replace("<<PATTERNS>>", ", ".join(PATTERNS))
+        .replace("<<STYLES>>", ", ".join(STYLES))
+        .replace("<<SEASONS>>", ", ".join(SEASONS))
+        .replace("<<FITS>>", ", ".join(FITS))
     )
 
 

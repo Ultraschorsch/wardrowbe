@@ -1,13 +1,14 @@
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Any, Literal, NamedTuple
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
-from app.models.item import ProcessingKind, TaggingStatus
+from app.models.item import ItemStatus, ProcessingKind, TaggingStatus
 from app.schemas.color import ColorList, ColorName
 from app.schemas.outfit import Occasion
+from app.utils.errors import ErrorParams
 from app.utils.garment_vocabulary import DEFAULT_WASH_INTERVALS
 from app.utils.signed_urls import sign_image_url, sign_optional
 
@@ -29,9 +30,12 @@ class ItemTags(BaseModel):
     size: str | None = Field(None, max_length=32)
     care_instructions: str | None = Field(None, max_length=255)
     source_url: str | None = Field(None, max_length=500)
+    # Tag keys changed by hand, kept so a later "re-analyse and replace" can leave them alone.
+    # The server maintains it; whatever a client sends for it is ignored.
+    user_edited_keys: list[str] = Field(default_factory=list)
 
 
-USER_TAG_KEYS = frozenset({"size", "care_instructions", "source_url"})
+USER_TAG_KEYS = frozenset({"size", "care_instructions", "source_url", "user_edited_keys"})
 
 
 class ItemBase(BaseModel):
@@ -66,6 +70,22 @@ class ItemUpdate(BaseModel):
     wash_interval: int | None = None
 
 
+class FailureReason(NamedTuple):
+    error: str | None
+    code: str | None
+    params: ErrorParams | None
+
+
+def failure_reason(raw: Any) -> FailureReason:
+    if not isinstance(raw, dict):
+        return FailureReason(None, None, None)
+    code = raw.get("error_code") or None
+    params = raw.get("error_params")
+    if code is not None and not isinstance(params, dict):
+        params = {}
+    return FailureReason(raw.get("error") or None, code, params if code else None)
+
+
 class ItemResponse(ItemBase):
     model_config = ConfigDict(from_attributes=True)
 
@@ -85,12 +105,19 @@ class ItemResponse(ItemBase):
             # Same idea for a type the model named but the vocabulary rejected:
             # lets the UI say "detected 'culottes', not a supported type" rather
             # than a bare "unknown".
-            for src, dest in (("error", "ai_error"), ("unrecognized_type", "ai_unrecognized_type")):
-                if raw.get(src):
+            error, code, params = failure_reason(raw)
+            lifted = {
+                "ai_error": error,
+                "ai_error_code": code,
+                "ai_error_params": params,
+                "ai_unrecognized_type": raw.get("unrecognized_type") or None,
+            }
+            for dest, value in lifted.items():
+                if value is not None:
                     if isinstance(data, dict):
-                        data[dest] = raw[src]
+                        data[dest] = value
                     else:
-                        setattr(data, dest, raw[src])
+                        setattr(data, dest, value)
         return data
 
     id: UUID
@@ -112,6 +139,8 @@ class ItemResponse(ItemBase):
     ai_confidence: Decimal | None = None
     ai_description: str | None = None
     ai_error: str | None = None
+    ai_error_code: str | None = None
+    ai_error_params: ErrorParams | None = None
     ai_unrecognized_type: str | None = None
     ai_started_at: datetime | None = None
     processing_kind: ProcessingKind | None = None
@@ -178,6 +207,8 @@ class AnalysisFailure(BaseModel):
     name: str | None = None
     type: str
     error: str | None = None
+    error_code: str | None = None
+    error_params: ErrorParams | None = None
     failed_at: datetime | None = None
 
 
@@ -210,16 +241,19 @@ class ItemListResponse(BaseModel):
     has_more: bool
 
 
-class ItemFilter(BaseModel):
+class ItemFilterFields(BaseModel):
     type: str | None = None
     subtype: str | None = None
     colors: ColorList | None = None
-    status: str | None = None
-    tagging_status: str | None = None
+    status: ItemStatus | None = None
+    tagging_status: TaggingStatus | None = None
     favorite: bool | None = None
     needs_wash: bool | None = None
     is_archived: bool = False
     search: str | None = None
+
+
+class ItemFilter(ItemFilterFields):
     sort_by: str | None = None
     sort_order: str = "desc"
 
@@ -256,13 +290,13 @@ class BulkUploadResponse(BaseModel):
     results: list[BulkUploadResult]
 
 
-class BulkFilters(BaseModel):
-    type: str | None = None
-    search: str | None = None
-    is_archived: bool | None = None
+class BulkFilters(ItemFilterFields):
+    model_config = ConfigDict(extra="forbid")
 
 
 class BulkSelectionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     # Explicit selection
     item_ids: list[UUID] | None = None
 
